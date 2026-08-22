@@ -11,6 +11,7 @@ Stream your Windows desktop to a TV over your own network. No internet, no cloud
 Your PC captures the screen, encodes it on the GPU, and sends it across your LAN. Use low-latency UDP with VLC or an Android receiver, or use the built-in HLS server with SS IPTV and similar apps on LG webOS and Samsung Tizen TVs.
 
 - **A whole screen, one monitor, or just one application window**
+- **Physical receiver-style interface** with tactile controls and clear signal lights
 - **1080p60 with sound**, on hardware that can manage it
 - **Local network only** — the stream is bound to your LAN adapter, so it cannot use your internet connection even by accident
 - **Only a receiver app on the TV** — VLC for UDP, or SS IPTV for HLS

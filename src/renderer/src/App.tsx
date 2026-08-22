@@ -98,8 +98,8 @@ export default function App() {
 
   if (!settings) {
     return (
-      <div className="grid h-full place-items-center bg-paper">
-        <span className="text-[12px] font-black uppercase tracking-[0.2em]">Loading…</span>
+      <div className="grid h-full place-items-center">
+        <span className="loading-plaque">Warming up receiver…</span>
       </div>
     )
   }
@@ -185,19 +185,20 @@ export default function App() {
   const stop = async () => { await api.stopStream(); setStreaming(false); setStatus('Idle') }
 
   return (
-    <div className="flex h-full flex-col bg-paper text-ink">
+    <div className="app-shell flex flex-col text-ink">
       {/* Header */}
-      <header className="flex items-center justify-between border-b-3 border-ink bg-ink px-4 py-2">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-[22px] font-black uppercase leading-none tracking-[0.22em] text-panel">
-            LANCAST
-          </h1>
-          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9c968a]">
-            desktop → tv · local network only
-          </span>
+      <header className="app-toolbar flex items-center justify-between">
+        <div className="brand-lockup">
+          <div className="brand-badge">
+            <h1 className="brand-title">LANCAST</h1>
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="brand-subtitle">Desktop → TV · local network only</span>
+            <span className="hardware-label">Network AV transmitter · Model NC-120</span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          {streaming ? <Tag tone="live">● LIVE</Tag> : <Tag>IDLE</Tag>}
+          {streaming ? <Tag tone="live">LIVE</Tag> : <Tag>IDLE</Tag>}
           {ffmpegInfo && (
             <Tag tone={ffmpegInfo.ok ? 'good' : 'bad'}>
               {ffmpegInfo.ok ? 'FFMPEG OK' : 'NO FFMPEG'}
@@ -206,7 +207,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="grid flex-1 gap-3 overflow-auto p-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <main className="receiver-deck grid flex-1 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* ------------------------------------------------ destination -- */}
         <Panel title="01 · Destination">
           <div className="flex flex-col gap-3">
@@ -244,7 +245,7 @@ export default function App() {
                 <div className="flex gap-1">
                   <Input readOnly value={receiverUrl}
                     placeholder={isHls ? 'Enter a valid TV IP first' : undefined}
-                    className="bg-[#ddd8c9]" />
+                  />
                   <Button size="sm" disabled={!receiverUrl}
                     onClick={() => { api.copy(receiverUrl); addLog('Receiver URL copied.') }}>Copy</Button>
                 </div>
@@ -252,7 +253,7 @@ export default function App() {
             </div>
 
             {isHls && (
-              <div className="border-3 border-ink bg-[#fffdf5] p-2 text-[11px] leading-snug">
+              <div className="info-well p-3 text-[11px] leading-snug">
                 <strong>LG / Samsung:</strong> start the stream, then add the playlist URL above as
                 an external playlist in SS IPTV. The direct HLS address is{' '}
                 <span className="break-all font-bold">{directUrl || 'shown after a valid TV IP is entered'}</span>.
@@ -261,8 +262,8 @@ export default function App() {
             )}
 
             {found && (
-              <div className="border-3 border-ink bg-white">
-                <div className="border-b-3 border-ink bg-cobalt px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white">
+              <div className="device-list">
+                <div className="device-list-header">
                   Replied to discovery — {found.length}
                 </div>
                 <div className="max-h-40 overflow-auto">
@@ -274,8 +275,8 @@ export default function App() {
                   )}
                   {found.map((d) => (
                     <button key={d.ip} onClick={() => { set('tvIp', d.ip); setFound(null) }}
-                      className="flex w-full items-center justify-between gap-2 border-b-3 border-ink px-2 py-1 text-left last:border-b-0 hover:bg-blaze hover:text-white">
-                      <span className="text-[12px] font-black">{d.ip}</span>
+                      className="device-row flex w-full items-center justify-between gap-2 px-2 py-1 text-left">
+                      <span className="font-mono text-[12px] font-bold">{d.ip}</span>
                       <span className="truncate text-[10px] opacity-70">{d.name}</span>
                     </button>
                   ))}
@@ -284,34 +285,34 @@ export default function App() {
             )}
 
             {scanProgress && (
-              <div className="border-3 border-ink bg-white p-2">
-                <div className="mb-1 text-[10px] font-black uppercase tracking-[0.14em]">
+              <div className="info-well progress-well">
+                <div className="section-label mb-1">
                   Pinging subnet — {scanProgress.done}/{scanProgress.total}
                 </div>
-                <div className="h-3 border-3 border-ink bg-paper">
-                  <div className="h-full bg-blaze"
+                <div className="progress-track">
+                  <div className="progress-fill"
                        style={{ width: `${(scanProgress.done / scanProgress.total) * 100}%` }} />
                 </div>
               </div>
             )}
 
             {netDevices && (
-              <div className="border-3 border-ink bg-white">
-                <div className="flex items-center gap-2 border-b-3 border-ink bg-cobalt px-2 py-1">
-                  <span className="text-[10px] font-black uppercase tracking-[0.14em] text-white">
+              <div className="device-list">
+                <div className="device-list-header flex items-center gap-2">
+                  <span>
                     Devices — {netDevices.length}
                   </span>
                   <input value={netFilter} onChange={(e) => setNetFilter(e.target.value)}
                     placeholder="filter ip or mac"
-                    className="ml-auto w-40 border-2 border-ink bg-white px-1 py-0.5 text-[11px] font-bold" />
+                    className="mini-input ml-auto w-40" />
                 </div>
                 <div className="max-h-48 overflow-auto">
                   {netDevices
                     .filter((d) => !netFilter || d.ip.includes(netFilter) || d.mac.includes(netFilter.toLowerCase()))
                     .map((d) => (
                       <button key={d.ip} onClick={() => { set('tvIp', d.ip); setNetDevices(null) }}
-                        className="flex w-full items-center justify-between gap-2 border-b-3 border-ink px-2 py-1 text-left last:border-b-0 hover:bg-blaze hover:text-white">
-                        <span className="text-[12px] font-black">{d.ip}</span>
+                        className="device-row flex w-full items-center justify-between gap-2 px-2 py-1 text-left">
+                        <span className="font-mono text-[12px] font-bold">{d.ip}</span>
                         <span className="text-[10px] opacity-70">{d.mac}</span>
                       </button>
                     ))}
@@ -350,7 +351,7 @@ export default function App() {
                   }}>Refresh</Button>
                 </div>
               </Field>
-              <div className="border-3 border-ink bg-[#fffdf5] p-2 text-[11px] leading-snug">
+              <div className="info-well p-3 text-[11px] leading-snug">
                 Only this top-level window is sent to the TV, even when it moves. Keep it open and
                 not minimized while streaming. Menus, dialogs, and other windows opened by the same
                 app are separate and are not included automatically.
@@ -358,7 +359,7 @@ export default function App() {
             </>}
 
             <div>
-              <span className="text-[10px] font-black uppercase tracking-[0.16em]">Quality preset</span>
+              <span className="section-label">Quality preset</span>
               <div className="mt-1 flex flex-wrap gap-2">
                 {PRESETS.map((p) => (
                   <Button key={p.label} size="sm" onClick={() => applyPreset(p)}>{p.label}</Button>
@@ -499,8 +500,8 @@ export default function App() {
             </div>
 
             {audioDevices.length === 0 && audioRaw && (
-              <details className="border-3 border-ink bg-white p-2">
-                <summary className="cursor-pointer text-[11px] font-black uppercase tracking-[0.12em]">
+              <details className="details-well p-2">
+                <summary className="section-label cursor-pointer">
                   No devices found — raw ffmpeg output
                 </summary>
                 <pre className="mt-2 max-h-40 overflow-auto text-[10px] leading-tight whitespace-pre-wrap">
@@ -523,39 +524,35 @@ export default function App() {
               </Button>
             </div>
 
-            <div className={`border-3 border-ink px-3 py-2 ${streaming ? 'stripes' : 'bg-panel'}`}>
-              <span className="inline-block bg-panel px-2 py-0.5 text-[11px] font-black uppercase tracking-[0.14em]">
-                {status}
-              </span>
+            <div className={`stream-status ${streaming ? 'is-live' : ''}`}>
+              <span>{status}</span>
             </div>
 
             <div>
-              <div className="flex items-center justify-between border-3 border-b-0 border-ink bg-ink px-2 py-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-panel">Log</span>
-                <button onClick={() => setLog([])}
-                  className="text-[10px] font-black uppercase tracking-[0.14em] text-[#9c968a] hover:text-blaze">
-                  clear
-                </button>
-              </div>
-              <div ref={logRef}
-                className="h-56 overflow-auto border-3 border-ink bg-white p-2 text-[11px] leading-snug">
-                {log.length === 0
-                  ? <span className="opacity-40">Nothing yet.</span>
-                  : log.map((line, i) => (
-                      <div key={i} className="whitespace-pre-wrap break-all border-b border-dashed border-[#ddd8c9] py-0.5">
-                        {line}
-                      </div>
-                    ))}
+              <div className="log-console">
+                <div className="log-console-header">
+                  <span>Signal monitor</span>
+                  <button onClick={() => setLog([])} className="log-clear">
+                    clear
+                  </button>
+                </div>
+                <div ref={logRef} className="log-readout">
+                  {log.length === 0
+                    ? <span className="opacity-40">NO SIGNAL EVENTS</span>
+                    : log.map((line, i) => (
+                        <div key={i} className="log-line whitespace-pre-wrap break-all">
+                          {line}
+                        </div>
+                      ))}
+                </div>
               </div>
             </div>
           </div>
         </Panel>
       </main>
 
-      <footer className="border-t-3 border-ink bg-ink px-4 py-1.5">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9c968a]">
-          Traffic is bound to your LAN adapter — never touches the internet, works with it unplugged.
-        </span>
+      <footer className="app-footer">
+        Traffic is bound to your LAN adapter — never touches the internet, works with it unplugged.
       </footer>
     </div>
   )
