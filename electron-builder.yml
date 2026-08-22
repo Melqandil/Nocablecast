@@ -1,0 +1,37 @@
+appId: com.lancast.app
+productName: LANCAST
+copyright: GPL-3.0
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - out/**/*
+  - package.json
+  - "!**/*.map"
+
+# The bundled ffmpeg sits next to the app rather than inside the asar, so it
+# can be executed as an ordinary binary.
+extraResources:
+  - from: resources/ffmpeg
+    to: ffmpeg
+    filter: ["**/*"]
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: LANCAST-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: LANCAST
+
+# Unsigned builds are normal for a small open-source tool; the README explains
+# the SmartScreen prompt so nobody is surprised by it.
+forceCodeSigning: false
