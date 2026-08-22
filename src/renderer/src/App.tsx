@@ -52,6 +52,7 @@ export default function App() {
   const [busy, setBusy] = useState<string | null>(null)
   const [found, setFound] = useState<FoundDevice[] | null>(null)
   const [netDevices, setNetDevices] = useState<NetDevice[] | null>(null)
+  const [netListOpen, setNetListOpen] = useState(false)
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null)
   const [netFilter, setNetFilter] = useState('')
   const [ffmpegInfo, setFfmpegInfo] = useState<{ ok: boolean; version: string; path: string } | null>(null)
@@ -131,6 +132,11 @@ export default function App() {
   const hlsBase = localIp ? `http://${localIp}:${settings.hlsPort || '8090'}` : ''
   const tvBrowserUrl = hlsBase ? `${hlsBase}/tv` : ''
   const receiverUrl = isHls ? tvBrowserUrl : `udp://@:${settings.tvPort || '1234'}`
+  const filteredNetDevices = (netDevices ?? []).filter((device) => {
+    const query = netFilter.trim().toLowerCase()
+    return !query || device.ip.includes(query) || device.mac.toLowerCase().includes(query)
+  })
+  const selectedNetDevice = netDevices?.find((device) => device.ip === settings.tvIp.trim())
 
   const applyPreset = (p: typeof PRESETS[number]) => {
     set('scaleWidth', p.width); set('fps', p.fps); set('bitrateKbps', p.bitrate)
@@ -261,10 +267,11 @@ export default function App() {
                 addLog(`Discovery finished: ${devs.length} device(s) replied.`)
               })}>{busy === 'scan' ? '…' : 'Find TV'}</Button>
               <Button size="sm" disabled={!!busy} onClick={() => withBusy('net', async () => {
-                setNetDevices(null); setScanProgress({ done: 0, total: 254 })
+                setNetDevices(null); setNetListOpen(false); setNetFilter('')
+                setScanProgress({ done: 0, total: 254 })
                 addLog('Scanning the local subnet…')
                 const devs = await api.scanNetwork()
-                setNetDevices(devs); setScanProgress(null)
+                setNetDevices(devs); setNetListOpen(true); setScanProgress(null)
                 addLog(`Scan finished: ${devs.length} device(s) found.`)
               })}>{busy === 'net' ? '…' : 'All devices'}</Button>
             </div>
@@ -329,27 +336,70 @@ export default function App() {
             )}
 
             {netDevices && (
-              <div className="device-list">
-                <div className="device-list-header flex items-center gap-2">
-                  <span>
-                    Devices — {netDevices.length}
+              <section className={`device-picker ${netListOpen ? 'is-open' : ''}`}>
+                <button
+                  type="button"
+                  className="device-picker-toggle"
+                  aria-expanded={netListOpen}
+                  aria-controls="network-device-results"
+                  onClick={() => setNetListOpen((open) => !open)}
+                >
+                  <span className="device-picker-chevron" aria-hidden>▶</span>
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="device-picker-title">Choose an IP / MAC address</span>
+                    <span className="device-picker-subtitle">
+                      {selectedNetDevice
+                        ? `Selected ${selectedNetDevice.ip} · ${netListOpen ? 'choose another below' : 'click to change'}`
+                        : `${netDevices.length} device(s) found · click to ${netListOpen ? 'collapse' : 'expand'}`}
+                    </span>
                   </span>
-                  <input value={netFilter} onChange={(e) => setNetFilter(e.target.value)}
-                    placeholder="filter ip or mac"
-                    className="mini-input ml-auto w-40" />
-                </div>
-                <div className="max-h-48 overflow-auto">
-                  {netDevices
-                    .filter((d) => !netFilter || d.ip.includes(netFilter) || d.mac.includes(netFilter.toLowerCase()))
-                    .map((d) => (
-                      <button key={d.ip} onClick={() => { set('tvIp', d.ip); setNetDevices(null) }}
-                        className="device-row flex w-full items-center justify-between gap-2 px-2 py-1 text-left">
-                        <span className="font-mono text-[12px] font-bold">{d.ip}</span>
-                        <span className="text-[10px] opacity-70">{d.mac}</span>
-                      </button>
-                    ))}
-                </div>
-              </div>
+                  <span className="device-picker-count">{netDevices.length}</span>
+                </button>
+
+                {netListOpen && (
+                  <div id="network-device-results" className="device-picker-body">
+                    <label className="device-picker-filter">
+                      <span>Filter the list</span>
+                      <input
+                        value={netFilter}
+                        onChange={(e) => setNetFilter(e.target.value)}
+                        placeholder="Type an IP or MAC address"
+                        className="mini-input"
+                      />
+                    </label>
+                    <div className="device-column-head" aria-hidden>
+                      <span>IP address</span>
+                      <span>MAC address</span>
+                    </div>
+                    <div className="device-picker-results" role="listbox" aria-label="Network devices">
+                      {filteredNetDevices.length === 0 && (
+                        <p className="device-picker-empty">
+                          {netDevices.length === 0
+                            ? 'No devices answered the scan. Check the router or enter the TV IP manually.'
+                            : 'No IP or MAC address matches this filter.'}
+                        </p>
+                      )}
+                      {filteredNetDevices.map((device) => (
+                        <button
+                          key={device.ip}
+                          type="button"
+                          role="option"
+                          aria-selected={device.ip === settings.tvIp.trim()}
+                          onClick={() => {
+                            set('tvIp', device.ip)
+                            setNetListOpen(false)
+                            addLog(`Selected network device ${device.ip} (${device.mac}).`)
+                          }}
+                          className={`device-row ${device.ip === settings.tvIp.trim() ? 'is-selected' : ''}`}
+                        >
+                          <span className="device-ip">{device.ip}</span>
+                          <span className="device-mac">{device.mac || 'MAC unavailable'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
             )}
           </div>
         </Panel>

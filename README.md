@@ -48,7 +48,7 @@ install of v1.4.1 is manual; later releases can update themselves.
 
 **On the PC**, open LANCAST:
 
-1. Put in your TV's IP address. **Find TV** searches for it; **All devices** lists everything on your network if that doesn't turn it up. Your TV also shows it under network settings.
+1. Put in your TV's IP address. **Find TV** searches for it; **All devices** opens an expandable IP/MAC picker if that doesn't turn it up. Filter the results, then click a row to fill the TV IP automatically. Your TV also shows it under network settings.
 2. Under **What to stream**, choose a screen/monitor or one open application window.
 3. Pick a quality preset — **1080p60** for screen capture or **1080p30** for a single app window is a good starting point.
 4. Press **Start**.
