@@ -140,4 +140,4 @@ Two decisions carry most of the quality, and both were learned the hard way:
 
 ## Licence
 
-GPL-3.0. LANCAST bundles [ffmpeg](https://ffmpeg.org/), which is licensed under the GPL/LGPL; the bundled build is fetched from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) at build time and is not redistributed in this repository.
+GPL-3.0. LANCAST bundles [ffmpeg](https://ffmpeg.org/), which is licensed under the GPL/LGPL; the bundled build is fetched from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) with [BtbN](https://github.com/BtbN/FFmpeg-Builds) as a fallback at build time, and is not redistributed in this repository.
