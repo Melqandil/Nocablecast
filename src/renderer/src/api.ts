@@ -35,6 +35,14 @@ export interface WindowInfo {
 export interface FoundDevice { ip: string; name: string; detail: string }
 export interface NetDevice { ip: string; mac: string }
 
+export interface UpdateState {
+  phase: 'disabled' | 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error'
+  currentVersion: string
+  version?: string
+  percent?: number
+  message?: string
+}
+
 export interface LancastApi {
   loadSettings(): Promise<Settings>
   saveSettings(s: Partial<Settings>): Promise<boolean>
@@ -60,9 +68,12 @@ export interface LancastApi {
   }>
   stopStream(): Promise<boolean>
   streamStatus(): Promise<boolean>
+  updateStatus(): Promise<UpdateState>
+  installUpdate(): Promise<{ ok: boolean; error?: string }>
   onLog(cb: (line: string) => void): () => void
   onEnded(cb: (code: number | null) => void): () => void
   onScanProgress(cb: (p: { done: number; total: number }) => void): () => void
+  onUpdateStatus(cb: (state: UpdateState) => void): () => void
 }
 
 declare global {

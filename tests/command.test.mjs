@@ -155,7 +155,12 @@ test('HLS output writes a short rolling playlist instead of a UDP destination', 
   assert.equal(cmd[cmd.indexOf('-f', cmd.indexOf('-c:v')) + 1], 'hls')
   assert.equal(cmd[cmd.indexOf('-hls_time') + 1], '1')
   assert.equal(cmd[cmd.indexOf('-hls_list_size') + 1], '5')
-  assert.ok(cmd[cmd.indexOf('-hls_flags') + 1].includes('delete_segments'))
+  const flags = cmd[cmd.indexOf('-hls_flags') + 1].split('+')
+  assert.deepEqual(flags, ['delete_segments', 'omit_endlist', 'temp_file'])
+  assert.ok(!flags.includes('independent_segments'),
+    'LG webOS does not support EXT-X-INDEPENDENT-SEGMENTS')
+  assert.ok(!flags.includes('append_list'),
+    'append_list introduces an EXT-X-DISCONTINUITY tag that is unreliable on LG webOS')
   assert.equal(cmd[cmd.indexOf('-hls_segment_filename') + 1], 'C:\\stream\\segment_%06d.ts')
   assert.equal(cmd.at(-1), 'C:\\stream\\live.m3u8')
   assert.ok(!cmd.some((arg) => String(arg).startsWith('udp://')))

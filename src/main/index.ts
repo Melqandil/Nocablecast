@@ -16,6 +16,7 @@ import { loadSettings, saveSettings, DEFAULTS, type Settings } from './config.js
 import { startStream, stopStream, isStreaming } from './stream.js'
 import { isLocalIpv4, validateStreamSettings } from './validation.js'
 import { startHlsServer, stopHlsServer, type HlsServerInfo } from './hls-server.js'
+import { initializeUpdater, registerUpdater } from './updater.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let win: BrowserWindow | null = null
@@ -80,6 +81,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   createWindow()
+  initializeUpdater()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -136,6 +138,11 @@ ipcMain.handle('network:local-ip', async (_event, targetIp: string) => {
 
 ipcMain.handle('stream:status', () => isStreaming())
 ipcMain.handle('stream:stop', async () => { await stopOutput(); return true })
+
+registerUpdater({
+  getWindow: () => win,
+  beforeInstall: stopOutput,
+})
 
 export interface StartPayload {
   settings: Settings

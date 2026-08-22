@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   api, ALL_MONITORS, type Settings, type DisplayInfo, type WindowInfo,
-  type NetDevice, type FoundDevice,
+  type NetDevice, type FoundDevice, type UpdateState,
 } from './api'
 import { Panel, Button, Field, Input, Toggle, Tag } from './components/brutal'
 import { BrutalSelect, HelpModal, type Option } from './components/hero'
@@ -56,6 +56,7 @@ export default function App() {
   const [netFilter, setNetFilter] = useState('')
   const [ffmpegInfo, setFfmpegInfo] = useState<{ ok: boolean; version: string; path: string } | null>(null)
   const [localIp, setLocalIp] = useState<string | null>(null)
+  const [update, setUpdate] = useState<UpdateState | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
   const addLog = useCallback((line: string) => {
@@ -67,6 +68,7 @@ export default function App() {
     api.listDisplays().then(setDisplays)
     api.listWindows().then(setWindows)
     api.probeFfmpeg().then(setFfmpegInfo)
+    api.updateStatus().then(setUpdate)
     const offLog = api.onLog(addLog)
     const offEnd = api.onEnded((code) => {
       setStreaming(false)
@@ -74,7 +76,8 @@ export default function App() {
       addLog(`ffmpeg exited (code ${code}).`)
     })
     const offScan = api.onScanProgress(setScanProgress)
-    return () => { offLog(); offEnd(); offScan() }
+    const offUpdate = api.onUpdateStatus(setUpdate)
+    return () => { offLog(); offEnd(); offScan(); offUpdate() }
   }, [addLog])
 
   useEffect(() => {
@@ -183,6 +186,25 @@ export default function App() {
 
   const stop = async () => { await api.stopStream(); setStreaming(false); setStatus('Idle') }
 
+  const installUpdate = async () => {
+    if (streaming) {
+      addLog('Stopping the stream before updating LANCAST…')
+      await stop()
+    }
+    addLog(`Downloading LANCAST ${update?.version ? `v${update.version}` : 'update'}…`)
+    const result = await api.installUpdate()
+    if (!result.ok) addLog(result.error ?? 'The update could not be started.')
+  }
+
+  const showUpdate = update && ['available', 'downloading', 'installing', 'error'].includes(update.phase)
+  const updateLabel = update?.phase === 'downloading'
+    ? `DOWNLOADING ${Math.round(update.percent ?? 0)}%`
+    : update?.phase === 'installing'
+      ? 'INSTALLING…'
+      : update?.phase === 'error'
+        ? 'RETRY UPDATE'
+        : `UPDATE TO v${update?.version}`
+
   return (
     <div className="app-shell flex flex-col text-ink">
       {/* Header */}
@@ -197,6 +219,18 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {showUpdate && (
+            <Button
+              size="sm"
+              variant="primary"
+              className="update-button"
+              disabled={update.phase === 'downloading' || update.phase === 'installing'}
+              title={update.message ?? 'Download, restart, and install the latest LANCAST release'}
+              onClick={installUpdate}
+            >
+              {updateLabel}
+            </Button>
+          )}
           {streaming ? <Tag tone="live">LIVE</Tag> : <Tag>IDLE</Tag>}
           {ffmpegInfo && (
             <Tag tone={ffmpegInfo.ok ? 'good' : 'bad'}>
@@ -550,7 +584,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        Traffic is bound to your LAN adapter — never touches the internet, works with it unplugged.
+        Streaming stays on your LAN · update checks contact GitHub only · no cloud relay or account.
       </footer>
     </div>
   )

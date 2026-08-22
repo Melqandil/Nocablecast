@@ -1,6 +1,6 @@
 # LANCAST
 
-Stream your Windows desktop to a TV over your own network. No internet, no cloud, no account, no subscription. The picture goes straight from your PC to your TV across the router, and works with the internet unplugged.
+Stream your Windows desktop to a TV over your own network. No cloud relay, no account, no subscription. The picture goes straight from your PC to your TV across the router, and works with the internet unplugged.
 
 ![LANCAST](docs/screenshot.png)
 
@@ -17,6 +17,7 @@ Your PC captures the screen, encodes it on the GPU, and sends it across your LAN
 - **No LG receiver app required** — HLS mode serves a remote-friendly page to the TV browser
 - **ffmpeg comes bundled** — no PATH setup, no separate download
 - **LG webOS browser support** — Play, Retry, and Fullscreen controls work with the TV remote
+- **One-click updates** — a button appears when a newer public GitHub release is available
 
 ## Install
 
@@ -31,6 +32,12 @@ other receiver) only needs VLC and must be on the same local network. An LG TV
 can use its built-in web browser instead. Sound is optional; sending Windows
 system audio requires a loopback device such as
 [VB-Audio Virtual Cable](https://vb-audio.com/Cable/).
+
+Starting with v1.4.1, LANCAST checks its public GitHub Releases feed after launch
+and every six hours. When a newer version exists, an **UPDATE TO v…** button
+appears in the toolbar. Clicking it downloads the verified release, stops any
+active stream, restarts LANCAST, and runs the update automatically. The first
+install of v1.4.1 is manual; later releases can update themselves.
 
 ## Use it
 
@@ -56,7 +63,7 @@ The picture should appear on the TV within a few seconds.
 4. On the LG TV, open **Home → Web Browser** and enter the displayed address, such as `http://192.168.1.20:8090/tv`.
 5. Choose **PLAY STREAM**, then **FULLSCREEN**. The page automatically retries while the first HLS segments are being created.
 
-The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. HLS normally has a few seconds more latency than UDP because the TV buffers short segments. If Windows Firewall asks, allow LANCAST on **Private networks** only.
+The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. HLS normally has a few seconds more latency than UDP because the TV buffers short segments. The live playlist deliberately uses the conservative HLS v3 tags supported by LG webOS. If Windows Firewall asks, allow LANCAST on **Private networks** only.
 
 ## Stream one application
 

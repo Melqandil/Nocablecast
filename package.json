@@ -1,6 +1,6 @@
 {
   "name": "lancast",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Stream your Windows desktop to a TV over your local network. No internet, no cloud, no account.",
   "main": "./out/main/index.js",
   "author": "Monssef",
@@ -23,6 +23,7 @@
     "@react-aria/i18n": "^3.13.1",
     "@react-aria/ssr": "^3.10.1",
     "@react-aria/utils": "^3.34.1",
+    "electron-updater": "^6.8.9",
     "react-aria": "^3.51.0",
     "react-aria-components": "^1.20.0"
   },

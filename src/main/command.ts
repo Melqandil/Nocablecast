@@ -247,7 +247,11 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
       '-hls_time', '1',
       '-hls_list_size', '5',
       '-hls_segment_type', 'mpegts',
-      '-hls_flags', 'delete_segments+append_list+omit_endlist+independent_segments+temp_file',
+      // Keep the live manifest deliberately conservative for TV browsers.
+      // In particular, LG webOS rejects EXT-X-INDEPENDENT-SEGMENTS and is
+      // unreliable around the discontinuity tag produced by append_list.
+      // This combination produces a simple HLS v3 rolling playlist.
+      '-hls_flags', 'delete_segments+omit_endlist+temp_file',
       '-hls_segment_filename', hlsSegmentPattern,
       hlsPlaylistPath,
     )

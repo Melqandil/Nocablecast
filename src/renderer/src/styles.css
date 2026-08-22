@@ -350,6 +350,12 @@ button, input { font: inherit; }
 .skeuo-button-sm { min-height: 27px; padding: 4px 9px; }
 .skeuo-button-md { min-height: 31px; padding: 6px 12px; }
 .skeuo-button-lg { min-height: 41px; padding: 8px 22px; font-size: 12px; border-radius: 8px; }
+.update-button {
+  border-color: #6d4616;
+  color: #fff7df;
+  background: linear-gradient(180deg, #d69b43 0%, #a36622 52%, #744414 100%);
+  box-shadow: 0 3px 0 #51300f, 0 5px 10px rgba(104,62,16,0.42), inset 0 1px rgba(255,255,255,0.42);
+}
 
 .skeuo-toggle {
   display: flex;

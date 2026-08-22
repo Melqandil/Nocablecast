@@ -1,5 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+interface UpdateState {
+  phase: 'disabled' | 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error'
+  currentVersion: string
+  version?: string
+  percent?: number
+  message?: string
+}
+
 /**
  * The only surface the UI can reach. Node stays in the main process; the
  * renderer gets a small, explicit set of calls and nothing else.
@@ -27,6 +35,9 @@ const api = {
   stopStream: () => ipcRenderer.invoke('stream:stop'),
   streamStatus: () => ipcRenderer.invoke('stream:status'),
 
+  updateStatus: () => ipcRenderer.invoke('update:status'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+
   onLog: (cb: (line: string) => void) => {
     const h = (_e: unknown, line: string) => cb(line)
     ipcRenderer.on('stream:log', h)
@@ -41,6 +52,11 @@ const api = {
     const h = (_e: unknown, p: { done: number; total: number }) => cb(p)
     ipcRenderer.on('network:progress', h)
     return () => ipcRenderer.removeListener('network:progress', h)
+  },
+  onUpdateStatus: (cb: (state: UpdateState) => void) => {
+    const h = (_e: unknown, state: UpdateState) => cb(state)
+    ipcRenderer.on('update:status', h)
+    return () => ipcRenderer.removeListener('update:status', h)
   },
 }
 

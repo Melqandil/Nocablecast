@@ -6,6 +6,14 @@ directories:
   buildResources: build
   output: release
 
+# electron-updater reads this provider from app-update.yml in the packaged
+# application. The public release supplies latest.yml, the installer, and its
+# blockmap so update checks and verified downloads require no account or token.
+publish:
+  - provider: github
+    owner: Melqandil
+    repo: Nocablecast
+
 files:
   - out/**/*
   - package.json
