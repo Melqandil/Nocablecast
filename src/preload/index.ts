@@ -14,6 +14,7 @@ const api = {
 
   probeFfmpeg: (override?: string) => ipcRenderer.invoke('ffmpeg:probe', override),
   listDisplays: () => ipcRenderer.invoke('displays:list'),
+  listWindows: () => ipcRenderer.invoke('windows:list'),
   listAudioDevices: (override?: string) => ipcRenderer.invoke('audio:list', override),
   detectEncoder: (override: string | undefined, pref: string) =>
     ipcRenderer.invoke('encoder:detect', override, pref),

@@ -8,6 +8,7 @@ import { buildCommand, type MonitorRect } from './command.js'
 import { resolveFfmpeg, probeFfmpeg } from './ffmpeg.js'
 import { detectEncoder, testDdagrab } from './encoders.js'
 import { enumerateDisplays } from './displays.js'
+import { enumerateWindows, windowHandleFromSourceId } from './windows.js'
 import { listAudioDevices } from './audio.js'
 import { ssdpDiscover, getLocalIp } from './discovery.js'
 import { scanNetwork } from './network.js'
@@ -107,6 +108,7 @@ ipcMain.handle('ffmpeg:probe', async (_e, override?: string) => {
 })
 
 ipcMain.handle('displays:list', () => enumerateDisplays())
+ipcMain.handle('windows:list', () => enumerateWindows())
 
 ipcMain.handle('audio:list', async (_e, override?: string) => {
   const path = resolveFfmpeg(override)
@@ -139,6 +141,8 @@ export interface StartPayload {
   settings: Settings
   monitor: MonitorRect | null
   monitorIndex: number
+  windowSourceId?: string | null
+  windowTitle?: string | null
 }
 
 ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
@@ -168,11 +172,23 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
 
   const [encoder, encoderArgs] = await detectEncoder(ffmpeg, settings.encoderPref, log)
 
+  const capturesWindow = settings.captureTarget === 'window'
+  const windowHandle = capturesWindow && payload.windowSourceId
+    ? windowHandleFromSourceId(payload.windowSourceId)
+    : null
+  if (capturesWindow && !windowHandle) {
+    return { ok: false, error: 'Choose an open application window before starting.' }
+  }
+
   // Resolve how the screen gets captured. Desktop Duplication is far faster
   // but isn't available everywhere, so unless GDI was forced we verify it
   // works before committing a live stream to it.
   let capture: 'ddagrab' | 'gdigrab'
-  if (settings.captureMethod === 'gdigrab') {
+  if (capturesWindow) {
+    capture = 'gdigrab'
+    log(`Capture target: ${payload.windowTitle?.trim() || 'selected application window'}.`)
+    log('Capture method: GDI (required for single-window capture).')
+  } else if (settings.captureMethod === 'gdigrab') {
     capture = 'gdigrab'
     log('Capture method: GDI (chosen manually).')
   } else {
@@ -242,8 +258,9 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     ffmpeg, encoder, encoderArgs,
     tvIp: settings.tvIp.trim(), tvPort: settings.tvPort.trim(),
     bitrateKbps: settings.bitrateKbps.trim(), scaleWidth: settings.scaleWidth.trim(),
-    fps: settings.fps.trim(), monitor, audioDevice: audioDevice || null,
-    localIp: bindIp, capture, monitorIndex, audioDelayMs,
+    fps: settings.fps.trim(), monitor: capturesWindow ? null : monitor,
+    audioDevice: audioDevice || null, localIp: bindIp, capture, monitorIndex,
+    windowHandle, audioDelayMs,
     outputMode,
     hlsPlaylistPath: hlsRoot ? join(hlsRoot, 'live.m3u8') : undefined,
     hlsSegmentPattern: hlsRoot ? join(hlsRoot, 'segment_%06d.ts') : undefined,

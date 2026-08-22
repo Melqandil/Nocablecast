@@ -16,7 +16,10 @@ export interface Settings {
   encoderPref: string
   captureMethod: string
   audioDelayMs: string
+  captureTarget: 'screen' | 'window'
   monitorLabel: string
+  windowHandle: string
+  windowTitle: string
 }
 
 export const DEFAULTS: Settings = {
@@ -37,7 +40,10 @@ export const DEFAULTS: Settings = {
   // buffering, not a universal constant -- on other hardware, retune it
   // with the Sync control.
   audioDelayMs: '-112',
+  captureTarget: 'screen',
   monitorLabel: '',
+  windowHandle: '',
+  windowTitle: '',
 }
 
 function configPath(): string {

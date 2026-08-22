@@ -12,7 +12,10 @@ export interface Settings {
   encoderPref: string
   captureMethod: string
   audioDelayMs: string
+  captureTarget: 'screen' | 'window'
   monitorLabel: string
+  windowHandle: string
+  windowTitle: string
 }
 
 export interface DisplayInfo {
@@ -21,6 +24,12 @@ export interface DisplayInfo {
   rect: { left: number; top: number; width: number; height: number }
   primary: boolean
   scaleFactor: number
+}
+
+export interface WindowInfo {
+  id: string
+  handle: string
+  title: string
 }
 
 export interface FoundDevice { ip: string; name: string; detail: string }
@@ -34,6 +43,7 @@ export interface LancastApi {
   openExternal(url: string): Promise<void>
   probeFfmpeg(override?: string): Promise<{ ok: boolean; version: string; path: string }>
   listDisplays(): Promise<DisplayInfo[]>
+  listWindows(): Promise<WindowInfo[]>
   listAudioDevices(override?: string): Promise<{ devices: string[]; raw: string }>
   detectEncoder(override: string | undefined, pref: string): Promise<string>
   discover(): Promise<FoundDevice[]>

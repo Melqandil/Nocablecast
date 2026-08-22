@@ -91,6 +91,33 @@ test('no-op rescaling is skipped', () => {
   assert.ok(!native.some((a) => String(a).includes('scale=1920')), 'no-op scale was emitted')
 })
 
+test('single-window capture targets its HWND and never leaks desktop geometry', () => {
+  const cmd = buildCommand({
+    ...base,
+    capture: 'gdigrab',
+    windowHandle: '123456',
+    audioDevice: 'CABLE Output',
+  })
+  const inputs = cmd.flatMap((arg, index) => arg === '-i' ? [cmd[index + 1]] : [])
+  assert.deepEqual(inputs, ['hwnd=123456', 'audio=CABLE Output'])
+  for (const flag of ['-offset_x', '-offset_y', '-video_size']) {
+    assert.ok(!cmd.includes(flag), `${flag} must not crop a selected window`)
+  }
+  assert.ok(cmd.some((arg) => String(arg).includes('scale=1920:-2')),
+    'window size is unknown, so requested output scaling must remain active')
+})
+
+test('single-window capture rejects unsafe handles and unsupported Desktop Duplication', () => {
+  assert.throws(
+    () => buildCommand({ ...base, capture: 'gdigrab', windowHandle: '1 & whoami' }),
+    /Invalid window handle/,
+  )
+  assert.throws(
+    () => buildCommand({ ...base, capture: 'ddagrab', windowHandle: '123456' }),
+    /requires GDI/,
+  )
+})
+
 test('the GPU-direct path keeps frames on the GPU', () => {
   // Forcing a pixel format would drag frames back into system memory and
   // undo the entire point of Desktop Duplication + NVENC.

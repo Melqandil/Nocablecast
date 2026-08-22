@@ -42,6 +42,8 @@ export interface BuildCommandOptions {
   capture?: 'gdigrab' | 'ddagrab'
   /** Which display ddagrab should capture (it selects by index, not rect). */
   monitorIndex?: number | null
+  /** Native Windows HWND. When set, gdigrab captures only this window. */
+  windowHandle?: string | null
   /** Lip-sync correction in ms. Negative pulls audio earlier. */
   audioDelayMs?: number
   outputMode?: 'udp' | 'hls'
@@ -144,7 +146,7 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
   const {
     ffmpeg, encoder, encoderArgs, tvIp, tvPort, bitrateKbps, scaleWidth, fps,
     monitor = null, audioDevice = null, localIp = null,
-    capture = 'gdigrab', monitorIndex = null, audioDelayMs = 0,
+    capture = 'gdigrab', monitorIndex = null, windowHandle = null, audioDelayMs = 0,
     outputMode = 'udp', hlsPlaylistPath, hlsSegmentPattern,
   } = opts
 
@@ -159,9 +161,18 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
   const bufsize = Math.max(1, rate)
 
   const useDda = capture === 'ddagrab'
+  if (windowHandle && !/^(?:0[xX][0-9a-fA-F]+|[1-9]\d*)$/.test(windowHandle)) {
+    throw new Error('Invalid window handle.')
+  }
+  if (windowHandle && useDda) {
+    throw new Error('Single-window capture requires GDI capture.')
+  }
+  // A persisted monitor rect is irrelevant when the source is a window. Its
+  // size comes from the HWND and can change while the app is running.
+  const sourceMonitor = windowHandle ? null : monitor
   // nvenc can consume GPU frames directly; the others cannot. Combined with
   // "no resize needed", that unlocks a fully on-GPU pipeline.
-  const gpuDirect = useDda && encoder === 'h264_nvenc' && !needsScaling(scaleWidth, monitor)
+  const gpuDirect = useDda && encoder === 'h264_nvenc' && !needsScaling(scaleWidth, sourceMonitor)
 
   const cmd: string[] = [ffmpeg, '-hide_banner', '-loglevel', 'warning']
 
@@ -189,7 +200,7 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
     // ddagrab produces video from a filter, so audio (when present) is
     // input 0.
     cmd.push(...audioInput)
-    cmd.push('-filter_complex', buildDdagrabFilter(fps, monitorIndex, scaleWidth, monitor, gpuDirect))
+    cmd.push('-filter_complex', buildDdagrabFilter(fps, monitorIndex, scaleWidth, sourceMonitor, gpuDirect))
     cmd.push('-map', '[v]')
     if (audioDevice) cmd.push('-map', '0:a')
     cmd.push(...videoEncodeArgs(encoder, encoderArgs, rate, bufsize, gop, gpuDirect))
@@ -201,17 +212,17 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
       // doesn't cost captured frames.
       '-thread_queue_size', '1024',
     ]
-    if (monitor) {
+    if (sourceMonitor) {
       videoInput.push(
-        '-offset_x', String(monitor.left),
-        '-offset_y', String(monitor.top),
-        '-video_size', `${monitor.width}x${monitor.height}`,
+        '-offset_x', String(sourceMonitor.left),
+        '-offset_y', String(sourceMonitor.top),
+        '-video_size', `${sourceMonitor.width}x${sourceMonitor.height}`,
       )
     }
-    videoInput.push('-i', 'desktop')
+    videoInput.push('-i', windowHandle ? `hwnd=${windowHandle}` : 'desktop')
     cmd.push(...videoInput, ...audioInput)
     if (audioDevice) cmd.push('-map', '0:v', '-map', '1:a')
-    if (needsScaling(scaleWidth, monitor)) {
+    if (needsScaling(scaleWidth, sourceMonitor)) {
       cmd.push('-vf', `scale=${scaleWidth}:-2:flags=fast_bilinear`)
     }
     cmd.push(...videoEncodeArgs(encoder, encoderArgs, rate, bufsize, gop, gpuDirect))

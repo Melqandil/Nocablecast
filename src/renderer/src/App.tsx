@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, ALL_MONITORS, type Settings, type DisplayInfo, type NetDevice, type FoundDevice } from './api'
+import {
+  api, ALL_MONITORS, type Settings, type DisplayInfo, type WindowInfo,
+  type NetDevice, type FoundDevice,
+} from './api'
 import { Panel, Button, Field, Input, Toggle, Tag } from './components/brutal'
 import { BrutalSelect, HelpModal, type Option } from './components/hero'
 
@@ -17,6 +20,15 @@ const CAPTURES: Option[] = [
   { key: 'gdigrab', label: 'GDI (most compatible)' },
 ]
 
+const CAPTURE_TARGETS: Option[] = [
+  { key: 'screen', label: 'Screen / monitor' },
+  { key: 'window', label: 'One application window' },
+]
+
+const WINDOW_CAPTURE: Option[] = [
+  { key: 'gdigrab', label: 'GDI (required for app windows)' },
+]
+
 const OUTPUTS: Option[] = [
   { key: 'udp', label: 'UDP — VLC / Android receiver' },
   { key: 'hls', label: 'HLS — LG / Samsung / IPTV apps' },
@@ -31,6 +43,7 @@ const PRESETS = [
 export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
+  const [windows, setWindows] = useState<WindowInfo[]>([])
   const [audioDevices, setAudioDevices] = useState<string[]>([])
   const [audioRaw, setAudioRaw] = useState('')
   const [log, setLog] = useState<string[]>([])
@@ -52,6 +65,7 @@ export default function App() {
   useEffect(() => {
     api.loadSettings().then(setSettings)
     api.listDisplays().then(setDisplays)
+    api.listWindows().then(setWindows)
     api.probeFfmpeg().then(setFfmpegInfo)
     const offLog = api.onLog(addLog)
     const offEnd = api.onEnded((code) => {
@@ -101,6 +115,15 @@ export default function App() {
     ? settings.monitorLabel
     : ALL_MONITORS
 
+  const windowOptions: Option[] = windows.map((window) => ({
+    key: window.id,
+    label: window.title,
+  }))
+  const selectedWindow = windows.find((window) => window.handle === settings.windowHandle)
+    ?? windows.find((window) => window.title === settings.windowTitle)
+  const selectedWindowKey = selectedWindow?.id ?? ''
+  const isWindowCapture = settings.captureTarget === 'window'
+
   const isHls = settings.outputMode === 'hls'
   const hlsBase = localIp ? `http://${localIp}:${settings.hlsPort || '8090'}` : ''
   const playlistUrl = hlsBase ? `${hlsBase}/nocablecast.m3u` : ''
@@ -112,6 +135,16 @@ export default function App() {
     addLog(`Preset applied: ${p.width}px wide, ${p.fps}fps, ${p.bitrate}kbps.`)
   }
 
+  const chooseWindow = (sourceId: string) => {
+    const chosen = windows.find((window) => window.id === sourceId)
+    if (!chosen) return
+    setSettings((current) => current ? {
+      ...current,
+      windowHandle: chosen.handle,
+      windowTitle: chosen.title,
+    } : current)
+  }
+
   const withBusy = async (name: string, fn: () => Promise<void>) => {
     setBusy(name)
     try { await fn() } finally { setBusy(null) }
@@ -119,18 +152,31 @@ export default function App() {
 
   const start = async () => {
     const chosen = displays.find((d) => d.label === selectedMonitorKey)
+    if (isWindowCapture && !selectedWindow) {
+      setStatus('Error')
+      addLog('Choose an open application window before starting.')
+      return
+    }
+    const effectiveSettings = selectedWindow ? {
+      ...settings,
+      windowHandle: selectedWindow.handle,
+      windowTitle: selectedWindow.title,
+    } : settings
     setStatus('Starting…')
     const res = await api.startStream({
-      settings,
-      monitor: chosen ? chosen.rect : null,
-      monitorIndex: chosen ? chosen.index : 0,
+      settings: effectiveSettings,
+      monitor: !isWindowCapture && chosen ? chosen.rect : null,
+      monitorIndex: !isWindowCapture && chosen ? chosen.index : 0,
+      windowSourceId: isWindowCapture ? selectedWindow?.id : null,
+      windowTitle: isWindowCapture ? selectedWindow?.title : null,
     })
     if (!res.ok) {
       setStatus('Error')
       addLog(res.error ?? 'Could not start.')
       return
     }
-    await api.saveSettings(settings)
+    await api.saveSettings(effectiveSettings)
+    setSettings(effectiveSettings)
     setStreaming(true)
     setStatus(`Streaming — ${res.encoder} · ${res.capture} · ${settings.outputMode.toUpperCase()}`)
     if (res.playlistUrl) addLog(`Copy this playlist URL into SS IPTV: ${res.playlistUrl}`)
@@ -278,7 +324,13 @@ export default function App() {
         {/* ----------------------------------------------------- picture -- */}
         <Panel title="02 · Picture">
           <div className="flex flex-col gap-3">
-            <Field label="Screen to stream">
+            <Field label="What to stream">
+              <BrutalSelect ariaLabel="What to stream" options={CAPTURE_TARGETS}
+                value={settings.captureTarget}
+                onChange={(key) => set('captureTarget', key as Settings['captureTarget'])} />
+            </Field>
+
+            {!isWindowCapture ? <Field label="Screen to stream">
               <div className="flex gap-1">
                 <BrutalSelect ariaLabel="Screen to stream" options={monitorOptions}
                   value={selectedMonitorKey} onChange={(k) => set('monitorLabel', k)} />
@@ -287,7 +339,23 @@ export default function App() {
                   addLog(`Detected ${d.length} monitor(s).`)
                 }}>Refresh</Button>
               </div>
-            </Field>
+            </Field> : <>
+              <Field label="Application window">
+                <div className="flex gap-1">
+                  <BrutalSelect ariaLabel="Application window" options={windowOptions}
+                    value={selectedWindowKey} onChange={chooseWindow} />
+                  <Button size="sm" onClick={async () => {
+                    const foundWindows = await api.listWindows(); setWindows(foundWindows)
+                    addLog(`Detected ${foundWindows.length} open application window(s).`)
+                  }}>Refresh</Button>
+                </div>
+              </Field>
+              <div className="border-3 border-ink bg-[#fffdf5] p-2 text-[11px] leading-snug">
+                Only this top-level window is sent to the TV, even when it moves. Keep it open and
+                not minimized while streaming. Menus, dialogs, and other windows opened by the same
+                app are separate and are not included automatically.
+              </div>
+            </>}
 
             <div>
               <span className="text-[10px] font-black uppercase tracking-[0.16em]">Quality preset</span>
@@ -310,8 +378,11 @@ export default function App() {
                   value={settings.encoderPref} onChange={(k) => set('encoderPref', k)} />
               </Field>
               <Field label="Capture method">
-                <BrutalSelect ariaLabel="Capture method" options={CAPTURES}
-                  value={settings.captureMethod} onChange={(k) => set('captureMethod', k)} />
+                <BrutalSelect ariaLabel="Capture method"
+                  options={isWindowCapture ? WINDOW_CAPTURE : CAPTURES}
+                  value={isWindowCapture ? 'gdigrab' : settings.captureMethod}
+                  disabled={isWindowCapture}
+                  onChange={(k) => set('captureMethod', k)} />
               </Field>
             </div>
 
@@ -330,7 +401,8 @@ export default function App() {
                   <strong>GDI</strong> is the classic method. It works everywhere, but every frame is
                   copied through your CPU. At 1920×1080 that is about 8&nbsp;MB per frame — roughly
                   half a gigabyte every second at 60fps. That is why GDI struggles to hold 60fps, and
-                  why it gets worse when your PC is also servicing a live audio device.
+                  why it gets worse when your PC is also servicing a live audio device. Capturing one
+                  application window uses GDI because Desktop Duplication only captures displays.
                 </p>
                 <p className="mb-2">
                   <strong>Desktop Duplication</strong> asks Windows for the finished frame straight
