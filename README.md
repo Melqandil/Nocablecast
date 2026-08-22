@@ -22,6 +22,12 @@ Your PC captures the screen, encodes it on the GPU, and pushes it to VLC on your
 
 Windows will likely warn you that the publisher is unrecognised — that happens with any installer that hasn't been signed with a paid certificate, which this isn't. Click **More info → Run anyway** if you're comfortable with that; the source is all here if you'd rather read it or build it yourself.
 
+The installer is for 64-bit Windows 10 or 11. It includes ffmpeg, so the PC
+does not need Python, Node.js, or a separate ffmpeg installation. The TV (or
+other receiver) only needs VLC and must be on the same local network. Sound is
+optional; sending Windows system audio requires a loopback device such as
+[VB-Audio Virtual Cable](https://vb-audio.com/Cable/).
+
 ## Use it
 
 **On the TV**, install VLC, open **Network Stream**, and enter the address LANCAST shows you (it looks like `udp://@:1234`).
@@ -65,14 +71,22 @@ The default is `-112`, measured on one real TV. It is not a universal figure —
 
 ## Build it yourself
 
+Install [Node.js 22 or newer](https://nodejs.org/), then run:
+
 ```bash
-npm install
+git clone https://github.com/Melqandil/Nocablecast.git
+cd Nocablecast
+npm ci
 npm run fetch:ffmpeg    # downloads the ffmpeg binary to bundle
 npm run dev             # run in development
 npm run dist            # produce a Windows installer in release/
 ```
 
-Pushing a tag (`v1.0.1`) builds the installer on a Windows runner and attaches it to a GitHub release. `npm test` runs the suite.
+`npm run typecheck`, `npm test`, and `npm run build` are the same checks run by
+CI. `npm run dist` produces a shareable installer in `release/`; the installed
+app has no Node.js or ffmpeg prerequisite. Pushing a version tag (for example
+`v1.0.1`) performs the same installer build on a Windows GitHub Actions runner
+and attaches it to a GitHub release.
 
 ## How it works
 

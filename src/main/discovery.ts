@@ -65,8 +65,41 @@ export function ssdpDiscover(timeoutMs = 3000): Promise<FoundDevice[]> {
   })
 }
 
-/** This PC's LAN IPv4 address for the interface that reaches the target. */
-export function getLocalIp(): string | null {
+/**
+ * Asks Windows which local address it would use to reach a specific TV.
+ * UDP connect chooses a route without sending a packet.
+ */
+function routedLocalIp(targetIp: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const sock = dgram.createSocket('udp4')
+    let settled = false
+    const finish = (value: string | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      try { sock.close() } catch { /* already closed */ }
+      resolve(value)
+    }
+    const timer = setTimeout(() => finish(null), 1000)
+    sock.once('error', () => finish(null))
+    sock.connect(9, targetIp, () => {
+      try {
+        const address = sock.address()
+        finish(typeof address === 'object' && address.family === 'IPv4' ? address.address : null)
+      } catch {
+        finish(null)
+      }
+    })
+  })
+}
+
+/** This PC's LAN IPv4 address, preferring the route to the selected TV. */
+export async function getLocalIp(targetIp?: string): Promise<string | null> {
+  if (targetIp) {
+    const routed = await routedLocalIp(targetIp)
+    if (routed) return routed
+  }
+
   const nets = networkInterfaces()
   const candidates: string[] = []
   for (const addrs of Object.values(nets)) {

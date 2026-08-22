@@ -12,6 +12,7 @@ import { ssdpDiscover, getLocalIp } from './discovery.js'
 import { scanNetwork } from './network.js'
 import { loadSettings, saveSettings, DEFAULTS, type Settings } from './config.js'
 import { startStream, stopStream, isStreaming } from './stream.js'
+import { validateStreamSettings } from './validation.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let win: BrowserWindow | null = null
@@ -111,6 +112,9 @@ export interface StartPayload {
 
 ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
   const { settings, monitor, monitorIndex } = payload
+  const validationError = validateStreamSettings(settings)
+  if (validationError) return { ok: false, error: validationError }
+
   const ffmpeg = resolveFfmpeg(settings.ffmpegPath)
 
   const probe = await probeFfmpeg(ffmpeg)
@@ -156,11 +160,11 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     log('Note: GDI capture copies every frame through the CPU and often cannot sustain more than ~30fps at 1080p. If the picture looks choppy, lower FPS to 30 or get Desktop Duplication working.')
   }
 
-  const localIp = getLocalIp()
+  const localIp = await getLocalIp(settings.tvIp.trim())
   const bindIp = localIp && net.isIPv4(localIp) ? localIp : null
 
   log(`This PC's LAN IP: ${localIp ?? '(unknown)'}`)
-  log(`Streaming to: ${settings.tvIp}:${settings.tvPort}`)
+  log(`Streaming to: ${settings.tvIp.trim()}:${settings.tvPort.trim()}`)
   if (audioDevice) {
     log(`Audio device: ${audioDevice}`)
     log('Audio capture chunk: 50ms.')
@@ -171,9 +175,9 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
 
   const cmd = buildCommand({
     ffmpeg, encoder, encoderArgs,
-    tvIp: settings.tvIp, tvPort: settings.tvPort,
-    bitrateKbps: settings.bitrateKbps, scaleWidth: settings.scaleWidth,
-    fps: settings.fps, monitor, audioDevice: audioDevice || null,
+    tvIp: settings.tvIp.trim(), tvPort: settings.tvPort.trim(),
+    bitrateKbps: settings.bitrateKbps.trim(), scaleWidth: settings.scaleWidth.trim(),
+    fps: settings.fps.trim(), monitor, audioDevice: audioDevice || null,
     localIp: bindIp, capture, monitorIndex, audioDelayMs,
   })
 

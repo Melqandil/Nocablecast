@@ -6,13 +6,16 @@
   "author": "Monssef",
   "license": "GPL-3.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "fetch:ffmpeg": "node scripts/fetch-ffmpeg.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "test": "tsc src/main/command.ts --outDir out-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck && node --test tests/*.test.mjs",
+    "test": "tsc src/main/command.ts src/main/validation.ts --outDir out-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck && node --test tests/*.test.mjs",
     "dist": "npm run fetch:ffmpeg && electron-vite build && electron-builder --win --publish never"
   },
   "dependencies": {

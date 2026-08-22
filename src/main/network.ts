@@ -40,7 +40,7 @@ async function pingOnce(ip: string): Promise<void> {
 export async function scanNetwork(
   onProgress?: (done: number, total: number) => void,
 ): Promise<NetDevice[]> {
-  const localIp = getLocalIp()
+  const localIp = await getLocalIp()
   if (!localIp) return []
 
   const base = localIp.split('.').slice(0, 3).join('.')

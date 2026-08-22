@@ -94,7 +94,6 @@ export default function App() {
 
   const start = async () => {
     const chosen = displays.find((d) => d.label === selectedMonitorKey)
-    await api.saveSettings(settings)
     setStatus('Starting…')
     const res = await api.startStream({
       settings,
@@ -106,6 +105,7 @@ export default function App() {
       addLog(res.error ?? 'Could not start.')
       return
     }
+    await api.saveSettings(settings)
     setStreaming(true)
     setStatus(`Streaming — ${res.encoder} · ${res.capture}`)
   }
