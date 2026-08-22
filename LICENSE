@@ -1,0 +1,23 @@
+LANCAST — stream your desktop to a TV over your local network
+Copyright (C) 2026 Monssef
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/>.
+
+The full licence text is available at https://www.gnu.org/licenses/gpl-3.0.txt
+
+---
+
+This application bundles ffmpeg (https://ffmpeg.org/), which is licensed under
+the GPL/LGPL. The bundled binary is downloaded at build time from
+https://www.gyan.dev/ffmpeg/builds/ and is not redistributed in this
+repository. ffmpeg's own licence and source are available from ffmpeg.org.
