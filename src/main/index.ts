@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, shell, clipboard } from 'electron'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, rmSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import net from 'node:net'
 
 import { buildCommand, type MonitorRect } from './command.js'
@@ -102,6 +103,42 @@ ipcMain.handle('settings:defaults', () => DEFAULTS)
 
 ipcMain.handle('app:copy', (_e, text: string) => { clipboard.writeText(text); return true })
 ipcMain.handle('app:openExternal', (_e, url: string) => shell.openExternal(url))
+
+ipcMain.handle('display:wireless-picker', async () => {
+  if (process.platform !== 'win32') {
+    return { ok: false, error: 'Wireless display setup is available only on Windows.' }
+  }
+  try {
+    // This opens the same Windows wireless-display discovery surface as the
+    // Connect / Cast control, while leaving device approval to Windows and TV.
+    await shell.openExternal('ms-settings-connectabledevices:devicediscovery')
+    return { ok: true }
+  } catch {
+    try {
+      // Older/newer Windows builds may route the discovery URI differently.
+      // The documented Display page always exposes Multiple displays.
+      await shell.openExternal('ms-settings:display')
+      return { ok: true }
+    } catch {
+      return { ok: false, error: 'Windows could not open the wireless display picker.' }
+    }
+  }
+})
+
+ipcMain.handle('display:extend', async () => {
+  if (process.platform !== 'win32') {
+    return { ok: false, error: 'Extend mode is available only on Windows.' }
+  }
+  const systemRoot = process.env.SystemRoot || 'C:\\Windows'
+  const displaySwitch = join(systemRoot, 'System32', 'DisplaySwitch.exe')
+  return new Promise<{ ok: boolean; error?: string }>((resolve) => {
+    execFile(displaySwitch, ['/extend'], { windowsHide: true }, (error) => {
+      resolve(error
+        ? { ok: false, error: 'Windows could not switch the connected displays to Extend mode.' }
+        : { ok: true })
+    })
+  })
+})
 
 ipcMain.handle('ffmpeg:probe', async (_e, override?: string) => {
   const path = resolveFfmpeg(override)

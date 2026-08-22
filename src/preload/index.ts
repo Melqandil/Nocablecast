@@ -19,6 +19,8 @@ const api = {
 
   copy: (text: string) => ipcRenderer.invoke('app:copy', text),
   openExternal: (url: string) => ipcRenderer.invoke('app:openExternal', url),
+  openWirelessDisplayPicker: () => ipcRenderer.invoke('display:wireless-picker'),
+  useExtendMode: () => ipcRenderer.invoke('display:extend'),
 
   probeFfmpeg: (override?: string) => ipcRenderer.invoke('ffmpeg:probe', override),
   listDisplays: () => ipcRenderer.invoke('displays:list'),

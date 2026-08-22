@@ -17,6 +17,7 @@ Your PC captures the screen, encodes it on the GPU, and sends it across your LAN
 - **No LG receiver app required** — HLS mode serves a remote-friendly page to the TV browser
 - **ffmpeg comes bundled** — no PATH setup, no separate download
 - **LG webOS browser support** — Play, Retry, and Fullscreen controls work with the TV remote
+- **Extra monitor assistant** — open Windows Wireless Display, approve the TV, and switch the connection to Extend mode from a guided popup
 - **One-click updates** — a button appears when a newer public GitHub release is available
 
 ## Install

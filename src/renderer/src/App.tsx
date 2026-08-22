@@ -54,6 +54,7 @@ export default function App() {
   const [found, setFound] = useState<FoundDevice[] | null>(null)
   const [netDevices, setNetDevices] = useState<NetDevice[] | null>(null)
   const [netListOpen, setNetListOpen] = useState(false)
+  const [extraDisplayOpen, setExtraDisplayOpen] = useState(false)
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null)
   const [netFilter, setNetFilter] = useState('')
   const [ffmpegInfo, setFfmpegInfo] = useState<{ ok: boolean; version: string; path: string } | null>(null)
@@ -191,6 +192,30 @@ export default function App() {
   }
 
   const stop = async () => { await api.stopStream(); setStreaming(false); setStatus('Idle') }
+
+  const openWirelessDisplayPicker = async () => {
+    const result = await api.openWirelessDisplayPicker()
+    if (!result.ok) {
+      setStatus('Wireless display unavailable')
+      addLog(result.error ?? 'Windows could not open the wireless display picker.')
+      return
+    }
+    setStatus('Choose the TV in Windows, then use Extend mode')
+    addLog('Windows wireless display picker opened. Select the TV and approve it on the TV screen.')
+  }
+
+  const useExtendMode = async () => {
+    const result = await api.useExtendMode()
+    if (!result.ok) {
+      setStatus('Extend mode unavailable')
+      addLog(result.error ?? 'Windows could not enable Extend mode.')
+      return
+    }
+    setStatus('Extra monitor enabled')
+    addLog('Windows switched connected displays to Extend mode.')
+    setExtraDisplayOpen(false)
+    window.setTimeout(() => { void api.listDisplays().then(setDisplays) }, 1500)
+  }
 
   const installUpdate = async () => {
     if (streaming) {
@@ -626,7 +651,82 @@ export default function App() {
               <Button size="lg" variant="danger" disabled={!streaming} onClick={stop}>
                 ■ Stop
               </Button>
+              <Button
+                size="lg"
+                className="extra-display-launch"
+                onClick={() => setExtraDisplayOpen(true)}
+              >
+                ▣ Add as extra monitor
+              </Button>
             </div>
+
+            <Modal isOpen={extraDisplayOpen} onOpenChange={setExtraDisplayOpen}>
+              <Modal.Backdrop className="skeuo-modal-backdrop" isDismissable>
+                <Modal.Container placement="center">
+                  <Modal.Dialog className="skeuo-modal skeuo-extra-display-modal">
+                    <Modal.Header className="skeuo-modal-header">
+                      <Modal.Heading className="skeuo-modal-title">
+                        Add the TV as an extra monitor
+                      </Modal.Heading>
+                      <Modal.CloseTrigger className="skeuo-modal-close" />
+                    </Modal.Header>
+                    <Modal.Body className="skeuo-modal-body extra-display-modal-body">
+                      <div className="extra-display-intro">
+                        <span className="extra-display-screen" aria-hidden>▣</span>
+                        <div>
+                          <strong>Windows Wireless Display</strong>
+                          <span>This uses Miracast, not the LANCAST browser stream.</span>
+                        </div>
+                      </div>
+
+                      <ol className="extra-display-steps">
+                        <li>
+                          <span>1</span>
+                          <div><strong>Open the TV picker</strong><small>Select your LG or Samsung TV in Windows.</small></div>
+                        </li>
+                        <li>
+                          <span>2</span>
+                          <div><strong>Approve on the TV</strong><small>Accept the wireless display request with the TV remote.</small></div>
+                        </li>
+                        <li>
+                          <span>3</span>
+                          <div><strong>Enable Extend</strong><small>Return here and press the second button below.</small></div>
+                        </li>
+                      </ol>
+
+                      <div className="extra-display-actions">
+                        <Button
+                          size="lg"
+                          variant="primary"
+                          disabled={!!busy}
+                          onClick={() => withBusy('wireless-display', openWirelessDisplayPicker)}
+                        >
+                          {busy === 'wireless-display' ? 'OPENING…' : '1 · OPEN TV PICKER'}
+                        </Button>
+                        <Button
+                          size="lg"
+                          disabled={!!busy}
+                          onClick={() => withBusy('extend-display', useExtendMode)}
+                        >
+                          {busy === 'extend-display' ? 'SWITCHING…' : '2 · TV CONNECTED — USE EXTEND'}
+                        </Button>
+                      </div>
+
+                      <p className="extra-display-note">
+                        Requires Miracast support on both the PC and TV. If the TV is not listed,
+                        keep using LANCAST Start or connect an HDMI/Miracast adapter.
+                      </p>
+                    </Modal.Body>
+                    <Modal.Footer className="device-modal-footer">
+                      <span>Windows may remember this TV for the next connection.</span>
+                      <Modal.CloseTrigger className="skeuo-button skeuo-button-md">
+                        CLOSE
+                      </Modal.CloseTrigger>
+                    </Modal.Footer>
+                  </Modal.Dialog>
+                </Modal.Container>
+              </Modal.Backdrop>
+            </Modal>
 
             <div className={`stream-status ${streaming ? 'is-live' : ''}`}>
               <span>{status}</span>

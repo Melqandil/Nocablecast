@@ -34,6 +34,7 @@ export interface WindowInfo {
 
 export interface FoundDevice { ip: string; name: string; detail: string }
 export interface NetDevice { ip: string; mac: string }
+export interface SystemActionResult { ok: boolean; error?: string }
 
 export interface UpdateState {
   phase: 'disabled' | 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error'
@@ -49,6 +50,8 @@ export interface LancastApi {
   getDefaults(): Promise<Settings>
   copy(text: string): Promise<boolean>
   openExternal(url: string): Promise<void>
+  openWirelessDisplayPicker(): Promise<SystemActionResult>
+  useExtendMode(): Promise<SystemActionResult>
   probeFfmpeg(override?: string): Promise<{ ok: boolean; version: string; path: string }>
   listDisplays(): Promise<DisplayInfo[]>
   listWindows(): Promise<WindowInfo[]>
