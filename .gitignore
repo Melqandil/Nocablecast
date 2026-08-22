@@ -1,0 +1,14 @@
+node_modules/
+out/
+out-test/
+release/
+dist/
+*.log
+.DS_Store
+.vite/
+*.tsbuildinfo
+
+# Fetched at build time, never committed -- see scripts/fetch-ffmpeg.mjs
+resources/ffmpeg/
+resources/ffmpeg.zip
+resources/_ffmpeg_tmp/
