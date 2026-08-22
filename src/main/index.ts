@@ -240,6 +240,7 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
 
   log(`This PC's LAN IP: ${localIp ?? '(unknown)'}`)
   if (hlsInfo) {
+    log(`LG browser receiver: ${hlsInfo.tvUrl}`)
     log(`SS IPTV playlist: ${hlsInfo.playlistUrl}`)
     log(`Direct HLS stream: ${hlsInfo.directUrl}`)
     log('Allow LANCAST through Windows Firewall on Private networks if the TV cannot connect.')
@@ -285,6 +286,7 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     ok: true,
     encoder,
     capture,
+    tvUrl: hlsInfo?.tvUrl,
     playlistUrl: hlsInfo?.playlistUrl,
     directUrl: hlsInfo?.directUrl,
   }

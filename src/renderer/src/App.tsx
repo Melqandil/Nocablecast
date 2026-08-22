@@ -31,7 +31,7 @@ const WINDOW_CAPTURE: Option[] = [
 
 const OUTPUTS: Option[] = [
   { key: 'udp', label: 'UDP — VLC / Android receiver' },
-  { key: 'hls', label: 'HLS — LG / Samsung / IPTV apps' },
+  { key: 'hls', label: 'HLS — LG TV web browser' },
 ]
 
 const PRESETS = [
@@ -126,9 +126,8 @@ export default function App() {
 
   const isHls = settings.outputMode === 'hls'
   const hlsBase = localIp ? `http://${localIp}:${settings.hlsPort || '8090'}` : ''
-  const playlistUrl = hlsBase ? `${hlsBase}/nocablecast.m3u` : ''
-  const directUrl = hlsBase ? `${hlsBase}/live.m3u8` : ''
-  const receiverUrl = isHls ? playlistUrl : `udp://@:${settings.tvPort || '1234'}`
+  const tvBrowserUrl = hlsBase ? `${hlsBase}/tv` : ''
+  const receiverUrl = isHls ? tvBrowserUrl : `udp://@:${settings.tvPort || '1234'}`
 
   const applyPreset = (p: typeof PRESETS[number]) => {
     set('scaleWidth', p.width); set('fps', p.fps); set('bitrateKbps', p.bitrate)
@@ -179,7 +178,7 @@ export default function App() {
     setSettings(effectiveSettings)
     setStreaming(true)
     setStatus(`Streaming — ${res.encoder} · ${res.capture} · ${settings.outputMode.toUpperCase()}`)
-    if (res.playlistUrl) addLog(`Copy this playlist URL into SS IPTV: ${res.playlistUrl}`)
+    if (res.tvUrl) addLog(`Open this address in the LG TV web browser: ${res.tvUrl}`)
   }
 
   const stop = async () => { await api.stopStream(); setStreaming(false); setStatus('Idle') }
@@ -241,7 +240,7 @@ export default function App() {
                 <Input value={isHls ? settings.hlsPort : settings.tvPort}
                   onChange={(e) => isHls ? set('hlsPort', e.target.value) : set('tvPort', e.target.value)} />
               </Field>
-              <Field label={isHls ? 'SS IPTV external playlist URL' : 'On the TV, open this in VLC'}>
+              <Field label={isHls ? 'Open this in the LG web browser' : 'On the TV, open this in VLC'}>
                 <div className="flex gap-1">
                   <Input readOnly value={receiverUrl}
                     placeholder={isHls ? 'Enter a valid TV IP first' : undefined}
@@ -254,9 +253,8 @@ export default function App() {
 
             {isHls && (
               <div className="info-well p-3 text-[11px] leading-snug">
-                <strong>LG / Samsung:</strong> start the stream, then add the playlist URL above as
-                an external playlist in SS IPTV. The direct HLS address is{' '}
-                <span className="break-all font-bold">{directUrl || 'shown after a valid TV IP is entered'}</span>.
+                <strong>No TV app required:</strong> press Start, open the LG TV’s Web Browser,
+                enter the address above, then choose <strong>Play stream</strong> and <strong>Fullscreen</strong>.
                 Allow LANCAST through Windows Firewall on <strong>Private networks</strong> when prompted.
               </div>
             )}

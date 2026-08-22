@@ -12,6 +12,7 @@ export interface HlsServerOptions {
 export interface HlsServerInfo {
   directUrl: string
   playlistUrl: string
+  tvUrl: string
   port: number
 }
 
@@ -30,6 +31,114 @@ function sendText(
     'Content-Length': Buffer.byteLength(body),
   })
   response.end(body)
+}
+
+function tvReceiverPage(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+  <title>LANCAST TV Receiver</title>
+  <style>
+    :root { color-scheme: dark; font-family: Arial, Helvetica, sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; background: #080b0d; color: #f4f0e7; }
+    body { display: flex; align-items: center; justify-content: center; padding: 3vh 3vw; overflow: hidden; }
+    .receiver { width: 94vw; max-width: 1500px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 1.5vh; }
+    .brand { font-size: 36px; font-size: clamp(24px, 3vw, 52px); font-weight: 900; letter-spacing: .28em; }
+    .sub { margin-top: .35rem; color: #9da7a0; font-size: 15px; font-size: clamp(12px, 1.2vw, 20px); letter-spacing: .12em; text-transform: uppercase; }
+    .status { display: inline-flex; align-items: center; padding: .7rem 1.1rem; border: 1px solid #3d4641; border-radius: 999px; color: #d3dad5; background: #171c19; font-size: 16px; font-size: clamp(13px, 1.2vw, 20px); font-weight: 700; }
+    .status::before { content: ''; width: .8rem; height: .8rem; margin-right: .7rem; border-radius: 50%; background: #d99a32; box-shadow: 0 0 14px rgba(217,154,50,.7); }
+    .status.live::before { background: #54ee7c; box-shadow: 0 0 16px rgba(84,238,124,.85); }
+    .screen { position: relative; height: 68vh; min-height: 360px; max-height: 844px; overflow: hidden; border: 2px solid #333b37; border-radius: 18px; background: #000; box-shadow: 0 3vh 8vh rgba(0,0,0,.55); }
+    video { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
+    .empty { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; padding: 8%; pointer-events: none; text-align: center; }
+    .empty strong { display: block; font-size: 36px; font-size: clamp(22px, 3.2vw, 56px); }
+    .empty span { display: block; max-width: 45rem; margin-top: 1rem; color: #aeb6b0; font-size: 18px; font-size: clamp(14px, 1.5vw, 24px); line-height: 1.45; }
+    .screen.has-picture .empty { display: none; }
+    .controls { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 2vh; }
+    button { min-width: 11rem; margin: 0 .5rem; padding: .9rem 1.4rem; border: 2px solid #59635d; border-radius: 12px; color: #f7f3e9; background: linear-gradient(#303832, #171c19); font: inherit; font-size: 18px; font-size: clamp(15px, 1.4vw, 23px); font-weight: 800; cursor: pointer; }
+    button:focus, button:hover { outline: 4px solid #f0a53b; outline-offset: 4px; background: linear-gradient(#4b554e, #222824); }
+    .hint { margin-top: 1.4vh; color: #8d9790; font-size: 13px; font-size: clamp(11px, 1vw, 17px); text-align: center; }
+    @media (max-aspect-ratio: 4/3) { body { overflow: auto; } .topbar { align-items: flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="receiver">
+    <div class="topbar">
+      <div><div class="brand">LANCAST</div><div class="sub">Local TV receiver</div></div>
+      <div id="status" class="status" role="status">Connecting…</div>
+    </div>
+    <div id="screen" class="screen">
+      <video id="stream" controls autoplay playsinline preload="auto"></video>
+      <div class="empty"><div><strong>Ready for your PC</strong><span>Keep LANCAST running, then choose Play stream. The first picture can take a few seconds.</span></div></div>
+    </div>
+    <div class="controls">
+      <button id="play" type="button" autofocus>PLAY STREAM</button>
+      <button id="retry" type="button">RETRY</button>
+      <button id="fullscreen" type="button">FULLSCREEN</button>
+    </div>
+    <div class="hint">PC and TV must be on the same local network · no cloud connection</div>
+  </main>
+  <script>
+    (function () {
+      var video = document.getElementById('stream');
+      var screen = document.getElementById('screen');
+      var status = document.getElementById('status');
+      var retryTimer = 0;
+
+      function setStatus(message, live) {
+        status.textContent = message;
+        status.className = live ? 'status live' : 'status';
+      }
+
+      function playStream() {
+        window.clearTimeout(retryTimer);
+        setStatus('Connecting…', false);
+        video.src = '/live.m3u8?nocache=' + Date.now();
+        video.load();
+        var attempt = video.play();
+        if (attempt && attempt.catch) {
+          attempt.catch(function () { setStatus('Press Play stream', false); });
+        }
+      }
+
+      document.getElementById('play').addEventListener('click', playStream);
+      document.getElementById('retry').addEventListener('click', playStream);
+      document.getElementById('fullscreen').addEventListener('click', function () {
+        var videoEnter = video.requestFullscreen || video.webkitRequestFullscreen || video.webkitRequestFullScreen;
+        var screenEnter = screen.requestFullscreen || screen.webkitRequestFullscreen || screen.webkitRequestFullScreen;
+        if (videoEnter) videoEnter.call(video);
+        else if (screenEnter) screenEnter.call(screen);
+      });
+
+      video.addEventListener('playing', function () {
+        screen.className = 'screen has-picture';
+        setStatus('Live from PC', true);
+      });
+      video.addEventListener('waiting', function () { setStatus('Buffering…', false); });
+      video.addEventListener('stalled', function () { setStatus('Waiting for PC…', false); });
+      video.addEventListener('pause', function () {
+        if (!video.ended && video.currentTime > 0) setStatus('Paused', false);
+      });
+      video.addEventListener('error', function () {
+        screen.className = 'screen';
+        setStatus('Stream is starting…', false);
+        window.clearTimeout(retryTimer);
+        retryTimer = window.setTimeout(playStream, 2500);
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.keyCode === 415) playStream();
+        if (event.keyCode === 19) video.pause();
+      });
+
+      window.setTimeout(playStream, 300);
+    }());
+  </script>
+</body>
+</html>`
 }
 
 /**
@@ -51,6 +160,21 @@ export async function startHlsServer(options: HlsServerOptions): Promise<HlsServ
     }
 
     const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
+    if (pathname === '/' || pathname === '/tv') {
+      const body = tvReceiverPage()
+      if (method === 'HEAD') {
+        response.writeHead(200, {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Length': Buffer.byteLength(body),
+        })
+        response.end()
+      } else {
+        sendText(response, 200, 'text/html; charset=utf-8', body)
+      }
+      return
+    }
+
     if (pathname === '/nocablecast.m3u') {
       const body = `#EXTM3U\n#EXTINF:-1,Nocablecast Desktop\n${directUrl}\n`
       if (method === 'HEAD') {
@@ -102,7 +226,12 @@ export async function startHlsServer(options: HlsServerOptions): Promise<HlsServ
   const port = typeof address === 'object' && address ? address.port : options.port
   const base = `http://${options.advertisedAddress}:${port}`
   directUrl = `${base}/live.m3u8`
-  return { directUrl, playlistUrl: `${base}/nocablecast.m3u`, port }
+  return {
+    directUrl,
+    playlistUrl: `${base}/nocablecast.m3u`,
+    tvUrl: `${base}/tv`,
+    port,
+  }
 }
 
 export async function stopHlsServer(): Promise<void> {

@@ -54,6 +54,7 @@ export interface LancastApi {
     error?: string
     encoder?: string
     capture?: string
+    tvUrl?: string
     playlistUrl?: string
     directUrl?: string
   }>

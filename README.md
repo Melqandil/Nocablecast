@@ -8,15 +8,15 @@ Stream your Windows desktop to a TV over your own network. No internet, no cloud
 
 ## What it does
 
-Your PC captures the screen, encodes it on the GPU, and sends it across your LAN. Use low-latency UDP with VLC or an Android receiver, or use the built-in HLS server with SS IPTV and similar apps on LG webOS and Samsung Tizen TVs.
+Your PC captures the screen, encodes it on the GPU, and sends it across your LAN. Use low-latency UDP with VLC or an Android receiver, or open LANCAST's built-in receiver page directly in the LG webOS browser.
 
 - **A whole screen, one monitor, or just one application window**
 - **Physical receiver-style interface** with tactile controls and clear signal lights
 - **1080p60 with sound**, on hardware that can manage it
 - **Local network only** — the stream is bound to your LAN adapter, so it cannot use your internet connection even by accident
-- **Only a receiver app on the TV** — VLC for UDP, or SS IPTV for HLS
+- **No LG receiver app required** — HLS mode serves a remote-friendly page to the TV browser
 - **ffmpeg comes bundled** — no PATH setup, no separate download
-- **LG and Samsung support** — HLS mode publishes a ready-made SS IPTV playlist
+- **LG webOS browser support** — Play, Retry, and Fullscreen controls work with the TV remote
 
 ## Install
 
@@ -27,8 +27,9 @@ Windows will likely warn you that the publisher is unrecognised — that happens
 
 The installer is for 64-bit Windows 10 or 11. It includes ffmpeg, so the PC
 does not need Python, Node.js, or a separate ffmpeg installation. The TV (or
-other receiver) only needs VLC and must be on the same local network. Sound is
-optional; sending Windows system audio requires a loopback device such as
+other receiver) only needs VLC and must be on the same local network. An LG TV
+can use its built-in web browser instead. Sound is optional; sending Windows
+system audio requires a loopback device such as
 [VB-Audio Virtual Cable](https://vb-audio.com/Cable/).
 
 ## Use it
@@ -36,7 +37,7 @@ optional; sending Windows system audio requires a loopback device such as
 **On the TV**, choose one of these receiver options:
 
 - **VLC / Android TV receiver:** select **UDP** in LANCAST, open VLC's **Network Stream**, and enter the address LANCAST shows you (usually `udp://@:1234`).
-- **LG webOS / Samsung Tizen:** install **SS IPTV**, select **HLS** in LANCAST, and add the displayed `http://.../nocablecast.m3u` address as an external playlist.
+- **LG webOS:** select **HLS** in LANCAST, press **Start**, then open the displayed `http://.../tv` address in the TV's built-in Web Browser.
 
 **On the PC**, open LANCAST:
 
@@ -47,21 +48,21 @@ optional; sending Windows system audio requires a loopback device such as
 
 The picture should appear on the TV within a few seconds.
 
-### LG or Samsung with SS IPTV
+### LG webOS — no TV app required
 
-1. Install **SS IPTV** from the TV's app store. Availability depends on the TV model and store region.
-2. In LANCAST, choose **HLS — LG / Samsung / IPTV apps**.
-3. Enter the TV's IP address so LANCAST binds the server to the correct network adapter.
-4. Press **Start**, then copy the **SS IPTV external playlist URL** shown by LANCAST.
-5. Add that URL as an external playlist in SS IPTV and open **Nocablecast Desktop**.
+1. In LANCAST, choose **HLS — LG TV web browser**.
+2. Enter the TV's IP address so LANCAST selects the correct local network adapter.
+3. Choose the screen or application window and press **Start**.
+4. On the LG TV, open **Home → Web Browser** and enter the displayed address, such as `http://192.168.1.20:8090/tv`.
+5. Choose **PLAY STREAM**, then **FULLSCREEN**. The page automatically retries while the first HLS segments are being created.
 
-The playlist and video segments are served only from this PC's selected LAN address. HLS normally has a few seconds more latency than UDP because the TV buffers short segments. If Windows Firewall asks, allow LANCAST on **Private networks** only.
+The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. HLS normally has a few seconds more latency than UDP because the TV buffers short segments. If Windows Firewall asks, allow LANCAST on **Private networks** only.
 
 ## Stream one application
 
 Under **Picture → What to stream**, choose **One application window**, select the
 open window, and press **Start**. Only that top-level window is sent, even if it
-moves around the desktop. This works with both UDP/VLC and HLS/SS IPTV receivers.
+moves around the desktop. This works with both UDP/VLC and the LG browser receiver.
 
 Single-window capture uses Windows GDI, so 1080p30 is usually a better starting
 point than 1080p60. Keep the selected window open and not minimized. Menus,
@@ -99,7 +100,7 @@ The default is `-112`, measured on one real TV. It is not a universal figure —
 
 **The picture freezes for a moment now and then.** The stream is plain UDP with no retransmission, which is what keeps it fast. A dropped packet — normal on Wi-Fi — costs up to half a second before the next keyframe restores the picture. Lower the bitrate, or put the TV on Ethernet.
 
-**Nothing arrives at the TV.** Check the selected receiver mode and port. In UDP mode, the VLC port must match. In HLS mode, start LANCAST before opening the playlist and allow LANCAST through Windows Firewall on **Private** networks. Some routers block client-to-client traffic ("AP isolation" or "client isolation") — that has to be turned off in the router.
+**Nothing arrives at the TV.** Check the selected receiver mode and port. In UDP mode, the VLC port must match. In HLS mode, press Start before opening the browser address and allow LANCAST through Windows Firewall on **Private** networks. Confirm the address ends in `/tv`; press **RETRY** once the PC says it is streaming. Some routers block client-to-client traffic ("AP isolation" or "client isolation") — that has to be turned off in the router.
 
 ## Build it yourself
 
@@ -128,7 +129,7 @@ Screen ──▶ Desktop Duplication (GPU) ──┐
 App window ──▶ GDI ────────────────────┘             │
                                                       ├──▶ MPEG-TS ──▶ UDP ──▶ VLC / Android
 Audio ──▶ DirectShow (50ms chunks) ──▶ AAC ──────────┤
-                                                      └──▶ HLS over HTTP ──▶ SS IPTV
+                                                      └──▶ HLS over HTTP ──▶ LG web browser
 ```
 
 Two decisions carry most of the quality, and both were learned the hard way:

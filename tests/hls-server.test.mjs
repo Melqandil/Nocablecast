@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 import { startHlsServer, stopHlsServer } from '../out-test/hls-server.js'
 
-test('HLS server exposes an SS IPTV playlist and generated stream files', async () => {
+test('HLS server exposes the TV receiver, IPTV playlist, and generated stream files', async () => {
   const root = await mkdtemp(join(tmpdir(), 'nocablecast-hls-'))
   try {
     await writeFile(join(root, 'live.m3u8'), '#EXTM3U\n#EXT-X-TARGETDURATION:1\n')
@@ -18,6 +18,26 @@ test('HLS server exposes an SS IPTV playlist and generated stream files', async 
       advertisedAddress: '127.0.0.1',
       port: 0,
     })
+
+    const receiver = await fetch(info.tvUrl)
+    assert.equal(receiver.status, 200)
+    assert.match(receiver.headers.get('content-type'), /text\/html/)
+    const receiverHtml = await receiver.text()
+    assert.match(receiverHtml, /LANCAST TV Receiver/)
+    assert.match(receiverHtml, /id="stream"/)
+    assert.match(receiverHtml, /\/live\.m3u8/)
+    assert.match(receiverHtml, /id="play"[^>]*>PLAY STREAM</)
+    assert.match(receiverHtml, /id="fullscreen"[^>]*>FULLSCREEN</)
+    assert.doesNotMatch(receiverHtml, /https?:\/\//)
+
+    const receiverHome = await fetch(info.tvUrl.replace('/tv', '/'))
+    assert.equal(receiverHome.status, 200)
+    assert.match(await receiverHome.text(), /LANCAST TV Receiver/)
+
+    const receiverHead = await fetch(info.tvUrl, { method: 'HEAD' })
+    assert.equal(receiverHead.status, 200)
+    assert.match(receiverHead.headers.get('content-type'), /text\/html/)
+    assert.equal(await receiverHead.text(), '')
 
     const external = await fetch(info.playlistUrl)
     assert.equal(external.status, 200)
