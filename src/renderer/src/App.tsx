@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Modal } from '@heroui/react'
 import {
   api, ALL_MONITORS, type Settings, type DisplayInfo, type WindowInfo,
   type NetDevice, type FoundDevice, type UpdateState,
@@ -136,7 +137,6 @@ export default function App() {
     const query = netFilter.trim().toLowerCase()
     return !query || device.ip.includes(query) || device.mac.toLowerCase().includes(query)
   })
-  const selectedNetDevice = netDevices?.find((device) => device.ip === settings.tvIp.trim())
 
   const applyPreset = (p: typeof PRESETS[number]) => {
     set('scaleWidth', p.width); set('fps', p.fps); set('bitrateKbps', p.bitrate)
@@ -336,70 +336,92 @@ export default function App() {
             )}
 
             {netDevices && (
-              <section className={`device-picker ${netListOpen ? 'is-open' : ''}`}>
+              <>
                 <button
                   type="button"
-                  className="device-picker-toggle"
-                  aria-expanded={netListOpen}
-                  aria-controls="network-device-results"
-                  onClick={() => setNetListOpen((open) => !open)}
+                  className="device-results-launch"
+                  onClick={() => setNetListOpen(true)}
                 >
-                  <span className="device-picker-chevron" aria-hidden>▶</span>
-                  <span className="min-w-0 flex-1 text-left">
-                    <span className="device-picker-title">Choose an IP / MAC address</span>
-                    <span className="device-picker-subtitle">
-                      {selectedNetDevice
-                        ? `Selected ${selectedNetDevice.ip} · ${netListOpen ? 'choose another below' : 'click to change'}`
-                        : `${netDevices.length} device(s) found · click to ${netListOpen ? 'collapse' : 'expand'}`}
-                    </span>
+                  <span className="device-results-launch-led" aria-hidden />
+                  <span>
+                    <strong>{netDevices.length} network device(s) ready</strong>
+                    <small>Open the IP / MAC results popup</small>
                   </span>
-                  <span className="device-picker-count">{netDevices.length}</span>
+                  <span className="device-results-launch-arrow" aria-hidden>OPEN ↗</span>
                 </button>
 
-                {netListOpen && (
-                  <div id="network-device-results" className="device-picker-body">
-                    <label className="device-picker-filter">
-                      <span>Filter the list</span>
-                      <input
-                        value={netFilter}
-                        onChange={(e) => setNetFilter(e.target.value)}
-                        placeholder="Type an IP or MAC address"
-                        className="mini-input"
-                      />
-                    </label>
-                    <div className="device-column-head" aria-hidden>
-                      <span>IP address</span>
-                      <span>MAC address</span>
-                    </div>
-                    <div className="device-picker-results" role="listbox" aria-label="Network devices">
-                      {filteredNetDevices.length === 0 && (
-                        <p className="device-picker-empty">
-                          {netDevices.length === 0
-                            ? 'No devices answered the scan. Check the router or enter the TV IP manually.'
-                            : 'No IP or MAC address matches this filter.'}
-                        </p>
-                      )}
-                      {filteredNetDevices.map((device) => (
-                        <button
-                          key={device.ip}
-                          type="button"
-                          role="option"
-                          aria-selected={device.ip === settings.tvIp.trim()}
-                          onClick={() => {
-                            set('tvIp', device.ip)
-                            setNetListOpen(false)
-                            addLog(`Selected network device ${device.ip} (${device.mac}).`)
-                          }}
-                          className={`device-row ${device.ip === settings.tvIp.trim() ? 'is-selected' : ''}`}
-                        >
-                          <span className="device-ip">{device.ip}</span>
-                          <span className="device-mac">{device.mac || 'MAC unavailable'}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </section>
+                <Modal isOpen={netListOpen} onOpenChange={setNetListOpen}>
+                  <Modal.Backdrop className="skeuo-modal-backdrop" isDismissable>
+                    <Modal.Container placement="center">
+                      <Modal.Dialog className="skeuo-modal skeuo-device-modal">
+                        <Modal.Header className="skeuo-modal-header">
+                          <Modal.Heading className="skeuo-modal-title">
+                            Network devices · choose the TV
+                          </Modal.Heading>
+                          <Modal.CloseTrigger className="skeuo-modal-close" />
+                        </Modal.Header>
+                        <Modal.Body className="skeuo-modal-body device-modal-body">
+                          <div className="device-modal-intro">
+                            <div>
+                              <strong>Choose one device to fill the TV IP address.</strong>
+                              <span>The popup closes automatically after your choice.</span>
+                            </div>
+                            <span className="device-modal-count">
+                              {filteredNetDevices.length} / {netDevices.length} shown
+                            </span>
+                          </div>
+                          <label className="device-picker-filter">
+                            <span>Filter the list</span>
+                            <input
+                              autoFocus
+                              value={netFilter}
+                              onChange={(e) => setNetFilter(e.target.value)}
+                              placeholder="Type an IP or MAC address"
+                              className="mini-input"
+                            />
+                          </label>
+                          <div className="device-column-head" aria-hidden>
+                            <span>IP address</span>
+                            <span>MAC address</span>
+                          </div>
+                          <div className="device-picker-results" role="listbox" aria-label="Network devices">
+                            {filteredNetDevices.length === 0 && (
+                              <p className="device-picker-empty">
+                                {netDevices.length === 0
+                                  ? 'No devices answered the scan. Check the router or enter the TV IP manually.'
+                                  : 'No IP or MAC address matches this filter.'}
+                              </p>
+                            )}
+                            {filteredNetDevices.map((device) => (
+                              <button
+                                key={device.ip}
+                                type="button"
+                                role="option"
+                                aria-selected={device.ip === settings.tvIp.trim()}
+                                onClick={() => {
+                                  set('tvIp', device.ip)
+                                  setNetListOpen(false)
+                                  addLog(`Selected network device ${device.ip} (${device.mac}).`)
+                                }}
+                                className={`device-row ${device.ip === settings.tvIp.trim() ? 'is-selected' : ''}`}
+                              >
+                                <span className="device-ip">{device.ip}</span>
+                                <span className="device-mac">{device.mac || 'MAC unavailable'}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </Modal.Body>
+                        <Modal.Footer className="device-modal-footer">
+                          <span>Select a row, or close without changing the current IP.</span>
+                          <Modal.CloseTrigger className="skeuo-button skeuo-button-md">
+                            Close
+                          </Modal.CloseTrigger>
+                        </Modal.Footer>
+                      </Modal.Dialog>
+                    </Modal.Container>
+                  </Modal.Backdrop>
+                </Modal>
+              </>
             )}
           </div>
         </Panel>

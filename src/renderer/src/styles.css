@@ -575,65 +575,97 @@ button, input { font: inherit; }
 }
 .device-ip { font-size: 12px; font-weight: 800; }
 .device-mac { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; }
-.device-picker {
-  overflow: hidden;
-  border: 1px solid #454741;
-  border-radius: 8px;
-  background: #c8c3b9;
-  box-shadow: 0 3px 7px rgba(45,43,38,0.30), inset 0 1px rgba(255,255,255,0.55);
-}
-.device-picker-toggle {
+.device-results-launch {
   display: flex;
   width: 100%;
-  min-height: 49px;
+  min-height: 48px;
   align-items: center;
   gap: 10px;
-  padding: 7px 10px;
-  border: 0;
+  padding: 7px 11px;
+  border: 1px solid #343731;
+  border-radius: 8px;
   color: #edf1e9;
   background: linear-gradient(180deg, #59625b, #303631);
-  box-shadow: inset 0 1px rgba(255,255,255,0.20), inset 0 -1px #171916;
+  box-shadow: 0 3px 6px rgba(42,41,36,0.30), inset 0 1px rgba(255,255,255,0.20), inset 0 -1px #171916;
   cursor: pointer;
+  text-align: left;
 }
-.device-picker-toggle:hover { background: linear-gradient(180deg, #69766c, #39433c); }
-.device-picker-chevron {
-  color: #f1aa43;
-  font-size: 11px;
-  text-shadow: 0 0 7px rgba(241,170,67,0.65);
-  transition: transform 140ms ease;
+.device-results-launch:hover { background: linear-gradient(180deg, #69766c, #39433c); }
+.device-results-launch-led {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border: 1px solid #142319;
+  border-radius: 50%;
+  background: var(--green-led);
+  box-shadow: 0 0 9px rgba(83,232,119,0.78), inset 0 1px rgba(255,255,255,0.65);
 }
-.device-picker.is-open .device-picker-chevron { transform: rotate(90deg); }
-.device-picker-title {
+.device-results-launch strong,
+.device-results-launch small { display: block; }
+.device-results-launch strong {
   display: block;
   font-size: 10px;
   font-weight: 850;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-.device-picker-subtitle {
-  display: block;
-  overflow: hidden;
+.device-results-launch small {
   margin-top: 2px;
   color: #b8beb5;
   font-family: "Cascadia Mono", "Consolas", monospace;
   font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-.device-picker-count {
-  min-width: 31px;
-  padding: 3px 6px;
-  border: 1px solid #131512;
-  border-radius: 10px;
-  color: #fff2d8;
-  background: #20231f;
-  box-shadow: inset 0 2px 3px rgba(0,0,0,0.65);
+.device-results-launch-arrow {
+  margin-left: auto;
+  color: #ffc872;
   font-family: "Cascadia Mono", "Consolas", monospace;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  text-align: center;
+  letter-spacing: 0.08em;
 }
-.device-picker-body { padding: 10px; background: #d6d1c7; }
+.skeuo-device-modal {
+  width: min(94vw, 64rem);
+  max-width: min(94vw, 64rem);
+}
+.skeuo-device-modal .skeuo-modal-title { font-size: 12px; }
+.device-modal-body {
+  display: flex;
+  max-height: min(74vh, 48rem);
+  overflow: hidden;
+  flex-direction: column;
+  padding: 16px 18px 18px;
+}
+.device-modal-intro {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #85837b;
+  border-radius: 7px;
+  color: #41433e;
+  background: #d8d1c2;
+  box-shadow: inset 0 2px 5px rgba(61,57,49,0.20), 0 1px rgba(255,255,255,0.65);
+  font-size: 11px;
+}
+.device-modal-intro strong,
+.device-modal-intro span { display: block; }
+.device-modal-intro span { margin-top: 2px; color: #666860; font-size: 10px; }
+.device-modal-count {
+  flex: none;
+  margin: 0 !important;
+  padding: 5px 8px;
+  border: 1px solid #20231f;
+  border-radius: 5px;
+  color: #e9f1e8 !important;
+  background: #333a34;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 9px !important;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .device-picker-filter {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -660,7 +692,8 @@ button, input { font: inherit; }
   text-transform: uppercase;
 }
 .device-picker-results {
-  max-height: 18rem;
+  min-height: 12rem;
+  max-height: min(52vh, 32rem);
   overflow-y: auto;
   border: 1px solid #62645d;
   border-top: 0;
@@ -668,6 +701,18 @@ button, input { font: inherit; }
   scrollbar-gutter: stable;
 }
 .device-picker-empty { padding: 14px; color: #55574f; font-size: 11px; line-height: 1.4; }
+.device-modal-footer {
+  display: flex;
+  min-height: 53px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 18px 12px;
+  border-top: 1px solid #88877f;
+  color: #5c5e57;
+  background: #c4bfb5;
+  font-size: 10px;
+}
 .mini-input { padding: 3px 6px; min-height: 23px; }
 .progress-well { padding: 8px; }
 .progress-track {
