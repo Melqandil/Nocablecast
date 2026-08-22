@@ -256,6 +256,13 @@ button, input { font: inherit; }
 }
 .skeuo-panel-body { padding: 13px; }
 
+.picture-panel .skeuo-panel-body {
+  height: clamp(250px, 38vh, 330px);
+  overflow-y: scroll;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 .skeuo-field-label,
 .section-label {
   color: #4b4c47;

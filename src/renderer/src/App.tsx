@@ -323,7 +323,7 @@ export default function App() {
         </Panel>
 
         {/* ----------------------------------------------------- picture -- */}
-        <Panel title="02 · Picture">
+        <Panel title="02 · Picture" className="picture-panel">
           <div className="flex flex-col gap-3">
             <Field label="What to stream">
               <BrutalSelect ariaLabel="What to stream" options={CAPTURE_TARGETS}
