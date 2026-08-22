@@ -1,0 +1,121 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/*
+ * Brutalist theme.
+ *
+ * HeroUI's defaults are soft: rounded corners, hairline borders, gentle
+ * shadows. Brutalism is the opposite -- so rather than fight each component
+ * individually, the theme tokens HeroUI is built on are redefined once here
+ * and every HeroUI widget inherits the harsh look automatically.
+ */
+:root,
+.light,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Nothing is rounded. Ever. */
+  --radius: 0rem;
+  --field-radius: 0rem;
+
+  /* Borders are structure, not decoration -- they must read as heavy. */
+  --border-width: 3px;
+  --field-border-width: 3px;
+  --ring-offset-width: 0px;
+
+  /* Paper-and-ink palette: warm off-white ground, pure black ink. */
+  --background: #e8e4d9;
+  --foreground: #0a0a0a;
+
+  --surface: #f5f2e8;
+  --surface-foreground: #0a0a0a;
+  --surface-secondary: #ddd8c9;
+  --surface-secondary-foreground: #0a0a0a;
+  --surface-tertiary: #cfc9b6;
+  --surface-tertiary-foreground: #0a0a0a;
+
+  --overlay: #f5f2e8;
+  --overlay-foreground: #0a0a0a;
+
+  --muted: #55524a;
+  --accent: #ff4a17;
+  --accent-foreground: #ffffff;
+
+  --border: #0a0a0a;
+  --separator: #0a0a0a;
+  --focus: #ff4a17;
+
+  --default: #ddd8c9;
+  --default-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #f5f2e8;
+  --secondary: #2b4cff;
+  --secondary-foreground: #ffffff;
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #f5b301;
+  --warning-foreground: #0a0a0a;
+  --danger: #d32000;
+  --danger-foreground: #ffffff;
+}
+
+@theme {
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  --color-ink: #0a0a0a;
+  --color-paper: #e8e4d9;
+  --color-panel: #f5f2e8;
+  --color-blaze: #ff4a17;
+  --color-cobalt: #2b4cff;
+  --color-acid: #d4ff2b;
+  --color-moss: #16a34a;
+  --color-rust: #d32000;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  /* Brutalism leans on type that looks like it came off a machine. */
+  font-feature-settings: "liga" 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The signature brutalist move: a hard offset shadow, no blur. */
+.shadow-brutal { box-shadow: 5px 5px 0 0 var(--color-ink); }
+.shadow-brutal-sm { box-shadow: 3px 3px 0 0 var(--color-ink); }
+.shadow-brutal-lg { box-shadow: 8px 8px 0 0 var(--color-ink); }
+
+/* Pressing something should feel physical: it moves into its own shadow. */
+.press-brutal {
+  transition: transform 60ms linear, box-shadow 60ms linear;
+}
+.press-brutal:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 0 var(--color-ink);
+}
+
+/* Diagonal warning stripes, used on the live-stream indicator. */
+.stripes {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--color-ink) 0 10px,
+    var(--color-acid) 10px 20px
+  );
+}
+
+::selection { background: var(--color-blaze); color: #fff; }
+
+/* Scrollbars, brutalised. */
+::-webkit-scrollbar { width: 14px; height: 14px; }
+::-webkit-scrollbar-track { background: var(--color-paper); border-left: 3px solid var(--color-ink); }
+::-webkit-scrollbar-thumb { background: var(--color-ink); border: 3px solid var(--color-paper); }
+::-webkit-scrollbar-thumb:hover { background: var(--color-blaze); }
+
+/* Focus must be unmistakable, not subtle. */
+*:focus-visible {
+  outline: 3px solid var(--color-blaze);
+  outline-offset: 2px;
+}
