@@ -3,8 +3,10 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 
 export interface Settings {
+  outputMode: 'udp' | 'hls'
   tvIp: string
   tvPort: string
+  hlsPort: string
   bitrateKbps: string
   scaleWidth: string
   fps: string
@@ -18,8 +20,10 @@ export interface Settings {
 }
 
 export const DEFAULTS: Settings = {
+  outputMode: 'udp',
   tvIp: '192.168.1.50',
   tvPort: '1234',
+  hlsPort: '8090',
   bitrateKbps: '8000',
   scaleWidth: '1920',
   fps: '60',

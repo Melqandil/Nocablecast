@@ -20,6 +20,7 @@ const api = {
 
   discover: () => ipcRenderer.invoke('discover:ssdp'),
   scanNetwork: () => ipcRenderer.invoke('network:scan'),
+  getLocalIp: (targetIp: string) => ipcRenderer.invoke('network:local-ip', targetIp),
 
   startStream: (payload: unknown) => ipcRenderer.invoke('stream:start', payload),
   stopStream: () => ipcRenderer.invoke('stream:stop'),

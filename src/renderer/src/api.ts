@@ -1,6 +1,8 @@
 export interface Settings {
+  outputMode: 'udp' | 'hls'
   tvIp: string
   tvPort: string
+  hlsPort: string
   bitrateKbps: string
   scaleWidth: string
   fps: string
@@ -36,7 +38,15 @@ export interface LancastApi {
   detectEncoder(override: string | undefined, pref: string): Promise<string>
   discover(): Promise<FoundDevice[]>
   scanNetwork(): Promise<NetDevice[]>
-  startStream(payload: unknown): Promise<{ ok: boolean; error?: string; encoder?: string; capture?: string }>
+  getLocalIp(targetIp: string): Promise<string | null>
+  startStream(payload: unknown): Promise<{
+    ok: boolean
+    error?: string
+    encoder?: string
+    capture?: string
+    playlistUrl?: string
+    directUrl?: string
+  }>
   stopStream(): Promise<boolean>
   streamStatus(): Promise<boolean>
   onLog(cb: (line: string) => void): () => void

@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, clipboard } from 'electron'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mkdirSync, rmSync } from 'node:fs'
 import net from 'node:net'
 
 import { buildCommand, type MonitorRect } from './command.js'
@@ -12,13 +13,38 @@ import { ssdpDiscover, getLocalIp } from './discovery.js'
 import { scanNetwork } from './network.js'
 import { loadSettings, saveSettings, DEFAULTS, type Settings } from './config.js'
 import { startStream, stopStream, isStreaming } from './stream.js'
-import { validateStreamSettings } from './validation.js'
+import { isLocalIpv4, validateStreamSettings } from './validation.js'
+import { startHlsServer, stopHlsServer, type HlsServerInfo } from './hls-server.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let win: BrowserWindow | null = null
+let activeHlsRoot: string | null = null
+let stopping: Promise<void> | null = null
 
 function log(line: string): void {
   win?.webContents.send('stream:log', line)
+}
+
+async function stopHlsOutput(): Promise<void> {
+  const root = activeHlsRoot
+  activeHlsRoot = null
+  await stopHlsServer()
+  if (root) {
+    try { rmSync(root, { recursive: true, force: true }) } catch { /* best effort */ }
+  }
+}
+
+async function stopOutput(): Promise<void> {
+  if (stopping) return stopping
+  stopping = (async () => {
+    await stopStream()
+    await stopHlsOutput()
+  })()
+  try {
+    await stopping
+  } finally {
+    stopping = null
+  }
 }
 
 function createWindow(): void {
@@ -59,11 +85,11 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  stopStream()
+  void stopOutput()
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', stopStream)
+app.on('before-quit', () => { void stopOutput() })
 
 // ---------------------------------------------------------------- IPC --
 
@@ -101,8 +127,13 @@ ipcMain.handle('network:scan', async (event) => {
   })
 })
 
+ipcMain.handle('network:local-ip', async (_event, targetIp: string) => {
+  if (!isLocalIpv4(targetIp)) return null
+  return getLocalIp(targetIp.trim())
+})
+
 ipcMain.handle('stream:status', () => isStreaming())
-ipcMain.handle('stream:stop', () => { stopStream(); return true })
+ipcMain.handle('stream:stop', async () => { await stopOutput(); return true })
 
 export interface StartPayload {
   settings: Settings
@@ -114,6 +145,8 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
   const { settings, monitor, monitorIndex } = payload
   const validationError = validateStreamSettings(settings)
   if (validationError) return { ok: false, error: validationError }
+
+  await stopOutput()
 
   const ffmpeg = resolveFfmpeg(settings.ffmpegPath)
 
@@ -162,9 +195,41 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
 
   const localIp = await getLocalIp(settings.tvIp.trim())
   const bindIp = localIp && net.isIPv4(localIp) ? localIp : null
+  const outputMode = settings.outputMode ?? 'udp'
+
+  if (outputMode === 'hls' && !bindIp) {
+    return { ok: false, error: 'Could not determine the LAN adapter that reaches this TV.' }
+  }
+
+  let hlsInfo: HlsServerInfo | null = null
+  let hlsRoot: string | null = null
+  if (outputMode === 'hls' && bindIp) {
+    hlsRoot = join(app.getPath('userData'), 'hls-stream')
+    try {
+      rmSync(hlsRoot, { recursive: true, force: true })
+      mkdirSync(hlsRoot, { recursive: true })
+      activeHlsRoot = hlsRoot
+      hlsInfo = await startHlsServer({
+        root: hlsRoot,
+        bindAddress: bindIp,
+        advertisedAddress: bindIp,
+        port: parseInt(settings.hlsPort, 10),
+      })
+    } catch (error) {
+      await stopHlsOutput()
+      const detail = error instanceof Error ? error.message : String(error)
+      return { ok: false, error: `Could not start the local HLS server: ${detail}` }
+    }
+  }
 
   log(`This PC's LAN IP: ${localIp ?? '(unknown)'}`)
-  log(`Streaming to: ${settings.tvIp.trim()}:${settings.tvPort.trim()}`)
+  if (hlsInfo) {
+    log(`SS IPTV playlist: ${hlsInfo.playlistUrl}`)
+    log(`Direct HLS stream: ${hlsInfo.directUrl}`)
+    log('Allow LANCAST through Windows Firewall on Private networks if the TV cannot connect.')
+  } else {
+    log(`Streaming to: ${settings.tvIp.trim()}:${settings.tvPort.trim()}`)
+  }
   if (audioDevice) {
     log(`Audio device: ${audioDevice}`)
     log('Audio capture chunk: 50ms.')
@@ -179,13 +244,31 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     bitrateKbps: settings.bitrateKbps.trim(), scaleWidth: settings.scaleWidth.trim(),
     fps: settings.fps.trim(), monitor, audioDevice: audioDevice || null,
     localIp: bindIp, capture, monitorIndex, audioDelayMs,
+    outputMode,
+    hlsPlaylistPath: hlsRoot ? join(hlsRoot, 'live.m3u8') : undefined,
+    hlsSegmentPattern: hlsRoot ? join(hlsRoot, 'segment_%06d.ts') : undefined,
   })
 
   log(`Running: ${cmd.join(' ')}`)
-  startStream(
-    cmd,
-    log,
-    (code) => win?.webContents.send('stream:ended', code),
-  )
-  return { ok: true, encoder, capture }
+  try {
+    startStream(
+      cmd,
+      log,
+      (code) => {
+        void stopHlsOutput()
+        win?.webContents.send('stream:ended', code)
+      },
+    )
+  } catch (error) {
+    await stopHlsOutput()
+    const detail = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: `Could not start the stream: ${detail}` }
+  }
+  return {
+    ok: true,
+    encoder,
+    capture,
+    playlistUrl: hlsInfo?.playlistUrl,
+    directUrl: hlsInfo?.directUrl,
+  }
 })

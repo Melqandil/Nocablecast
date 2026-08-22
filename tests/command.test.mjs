@@ -117,6 +117,30 @@ test('output is bound to the local adapter and stays on the LAN', () => {
   assert.ok(!unbound[unbound.length - 1].includes('localaddr'))
 })
 
+test('HLS output writes a short rolling playlist instead of a UDP destination', () => {
+  const cmd = buildCommand({
+    ...base,
+    capture: 'ddagrab',
+    outputMode: 'hls',
+    hlsPlaylistPath: 'C:\\stream\\live.m3u8',
+    hlsSegmentPattern: 'C:\\stream\\segment_%06d.ts',
+  })
+  assert.equal(cmd[cmd.indexOf('-f', cmd.indexOf('-c:v')) + 1], 'hls')
+  assert.equal(cmd[cmd.indexOf('-hls_time') + 1], '1')
+  assert.equal(cmd[cmd.indexOf('-hls_list_size') + 1], '5')
+  assert.ok(cmd[cmd.indexOf('-hls_flags') + 1].includes('delete_segments'))
+  assert.equal(cmd[cmd.indexOf('-hls_segment_filename') + 1], 'C:\\stream\\segment_%06d.ts')
+  assert.equal(cmd.at(-1), 'C:\\stream\\live.m3u8')
+  assert.ok(!cmd.some((arg) => String(arg).startsWith('udp://')))
+})
+
+test('HLS output refuses to run without writable output paths', () => {
+  assert.throws(
+    () => buildCommand({ ...base, outputMode: 'hls' }),
+    /playlist and segment paths/,
+  )
+})
+
 test('keyframes are frequent enough for quick recovery', () => {
   // Plain UDP has no retransmission, so recovery time is bounded by the
   // keyframe interval: half a second at any frame rate.

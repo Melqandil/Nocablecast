@@ -17,6 +17,11 @@ const CAPTURES: Option[] = [
   { key: 'gdigrab', label: 'GDI (most compatible)' },
 ]
 
+const OUTPUTS: Option[] = [
+  { key: 'udp', label: 'UDP — VLC / Android receiver' },
+  { key: 'hls', label: 'HLS — LG / Samsung / IPTV apps' },
+]
+
 const PRESETS = [
   { label: '1080p60', width: '1920', fps: '60', bitrate: '8000' },
   { label: '1080p30', width: '1920', fps: '30', bitrate: '6000' },
@@ -37,6 +42,7 @@ export default function App() {
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null)
   const [netFilter, setNetFilter] = useState('')
   const [ffmpegInfo, setFfmpegInfo] = useState<{ ok: boolean; version: string; path: string } | null>(null)
+  const [localIp, setLocalIp] = useState<string | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
   const addLog = useCallback((line: string) => {
@@ -61,6 +67,21 @@ export default function App() {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
   }, [log])
 
+  useEffect(() => {
+    let cancelled = false
+    const targetIp = settings?.tvIp.trim()
+    if (!targetIp) {
+      setLocalIp(null)
+      return
+    }
+    api.getLocalIp(targetIp).then((ip) => {
+      if (!cancelled) setLocalIp(ip)
+    }).catch(() => {
+      if (!cancelled) setLocalIp(null)
+    })
+    return () => { cancelled = true }
+  }, [settings?.tvIp])
+
   if (!settings) {
     return (
       <div className="grid h-full place-items-center bg-paper">
@@ -80,7 +101,11 @@ export default function App() {
     ? settings.monitorLabel
     : ALL_MONITORS
 
-  const vlcString = `udp://@:${settings.tvPort || '1234'}`
+  const isHls = settings.outputMode === 'hls'
+  const hlsBase = localIp ? `http://${localIp}:${settings.hlsPort || '8090'}` : ''
+  const playlistUrl = hlsBase ? `${hlsBase}/nocablecast.m3u` : ''
+  const directUrl = hlsBase ? `${hlsBase}/live.m3u8` : ''
+  const receiverUrl = isHls ? playlistUrl : `udp://@:${settings.tvPort || '1234'}`
 
   const applyPreset = (p: typeof PRESETS[number]) => {
     set('scaleWidth', p.width); set('fps', p.fps); set('bitrateKbps', p.bitrate)
@@ -107,7 +132,8 @@ export default function App() {
     }
     await api.saveSettings(settings)
     setStreaming(true)
-    setStatus(`Streaming — ${res.encoder} · ${res.capture}`)
+    setStatus(`Streaming — ${res.encoder} · ${res.capture} · ${settings.outputMode.toUpperCase()}`)
+    if (res.playlistUrl) addLog(`Copy this playlist URL into SS IPTV: ${res.playlistUrl}`)
   }
 
   const stop = async () => { await api.stopStream(); setStreaming(false); setStatus('Idle') }
@@ -138,6 +164,11 @@ export default function App() {
         {/* ------------------------------------------------ destination -- */}
         <Panel title="01 · Destination">
           <div className="flex flex-col gap-3">
+            <Field label="Receiver type">
+              <BrutalSelect ariaLabel="Receiver type" options={OUTPUTS}
+                value={settings.outputMode} onChange={(k) => set('outputMode', k as Settings['outputMode'])} />
+            </Field>
+
             <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
               <Field label="TV IP address">
                 <Input value={settings.tvIp} onChange={(e) => set('tvIp', e.target.value)}
@@ -159,16 +190,29 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Field label="Port">
-                <Input value={settings.tvPort} onChange={(e) => set('tvPort', e.target.value)} />
+              <Field label={isHls ? 'HTTP port on this PC' : 'UDP port'}>
+                <Input value={isHls ? settings.hlsPort : settings.tvPort}
+                  onChange={(e) => isHls ? set('hlsPort', e.target.value) : set('tvPort', e.target.value)} />
               </Field>
-              <Field label="On the TV, open this in VLC">
+              <Field label={isHls ? 'SS IPTV external playlist URL' : 'On the TV, open this in VLC'}>
                 <div className="flex gap-1">
-                  <Input readOnly value={vlcString} className="bg-[#ddd8c9]" />
-                  <Button size="sm" onClick={() => { api.copy(vlcString); addLog('Copied.') }}>Copy</Button>
+                  <Input readOnly value={receiverUrl}
+                    placeholder={isHls ? 'Enter a valid TV IP first' : undefined}
+                    className="bg-[#ddd8c9]" />
+                  <Button size="sm" disabled={!receiverUrl}
+                    onClick={() => { api.copy(receiverUrl); addLog('Receiver URL copied.') }}>Copy</Button>
                 </div>
               </Field>
             </div>
+
+            {isHls && (
+              <div className="border-3 border-ink bg-[#fffdf5] p-2 text-[11px] leading-snug">
+                <strong>LG / Samsung:</strong> start the stream, then add the playlist URL above as
+                an external playlist in SS IPTV. The direct HLS address is{' '}
+                <span className="break-all font-bold">{directUrl || 'shown after a valid TV IP is entered'}</span>.
+                Allow LANCAST through Windows Firewall on <strong>Private networks</strong> when prompted.
+              </div>
+            )}
 
             {found && (
               <div className="border-3 border-ink bg-white">

@@ -12,7 +12,7 @@ export function isStreaming(): boolean {
 
 /** Starts ffmpeg, relaying its output line by line. */
 export function startStream(cmd: string[], onLog: StreamLogFn, onExit: StreamExitFn): void {
-  stopStream()
+  if (isStreaming()) throw new Error('A stream is already running.')
   const [bin, ...args] = cmd
   const proc = spawn(bin, args, { ...NO_WINDOW })
   current = proc
@@ -32,12 +32,28 @@ export function startStream(cmd: string[], onLog: StreamLogFn, onExit: StreamExi
   })
 }
 
-export function stopStream(): void {
-  if (current && current.exitCode === null) {
-    // SIGTERM lets ffmpeg flush and close its socket cleanly.
-    current.kill('SIGTERM')
-    const dying = current
-    setTimeout(() => { if (dying.exitCode === null) dying.kill('SIGKILL') }, 3000)
-  }
+export async function stopStream(): Promise<void> {
+  const dying = current
   current = null
+  if (!dying || dying.exitCode !== null) return
+
+  // SIGTERM lets ffmpeg flush and close its socket cleanly.
+  await new Promise<void>((resolve) => {
+    let finished = false
+    let forceTimer: NodeJS.Timeout | undefined
+    let failsafeTimer: NodeJS.Timeout | undefined
+    const finish = () => {
+      if (finished) return
+      finished = true
+      if (forceTimer) clearTimeout(forceTimer)
+      if (failsafeTimer) clearTimeout(failsafeTimer)
+      resolve()
+    }
+    dying.once('close', finish)
+    dying.kill('SIGTERM')
+    forceTimer = setTimeout(() => {
+      if (dying.exitCode === null) dying.kill('SIGKILL')
+    }, 3000)
+    failsafeTimer = setTimeout(finish, 5000)
+  })
 }

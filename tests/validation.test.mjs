@@ -3,8 +3,10 @@ import assert from 'node:assert/strict'
 import { isLocalIpv4, validateStreamSettings } from '../out-test/validation.js'
 
 const valid = {
+  outputMode: 'udp',
   tvIp: '192.168.1.50',
   tvPort: '1234',
+  hlsPort: '8090',
   bitrateKbps: '8000',
   scaleWidth: '1920',
   fps: '60',
@@ -26,10 +28,12 @@ test('local destination validation rejects public, loopback, multicast, and malf
 test('valid stream settings pass', () => {
   assert.equal(validateStreamSettings(valid), null)
   assert.equal(validateStreamSettings({ ...valid, tvIp: ' 192.168.1.50 ', tvPort: ' 1234 ' }), null)
+  assert.equal(validateStreamSettings({ ...valid, outputMode: 'hls', hlsPort: '8090' }), null)
 })
 
 test('invalid numeric stream settings return useful errors', () => {
-  assert.match(validateStreamSettings({ ...valid, tvPort: '0' }), /Port/)
+  assert.match(validateStreamSettings({ ...valid, tvPort: '0' }), /port/i)
+  assert.match(validateStreamSettings({ ...valid, outputMode: 'hls', hlsPort: '70000' }), /HTTP port/)
   assert.match(validateStreamSettings({ ...valid, scaleWidth: '1919' }), /Width/)
   assert.match(validateStreamSettings({ ...valid, fps: '0' }), /FPS/)
   assert.match(validateStreamSettings({ ...valid, bitrateKbps: '-1' }), /Bitrate/)

@@ -44,6 +44,10 @@ export interface BuildCommandOptions {
   monitorIndex?: number | null
   /** Lip-sync correction in ms. Negative pulls audio earlier. */
   audioDelayMs?: number
+  outputMode?: 'udp' | 'hls'
+  /** Writable paths used only when outputMode is hls. */
+  hlsPlaylistPath?: string
+  hlsSegmentPattern?: string
 }
 
 /**
@@ -141,6 +145,7 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
     ffmpeg, encoder, encoderArgs, tvIp, tvPort, bitrateKbps, scaleWidth, fps,
     monitor = null, audioDevice = null, localIp = null,
     capture = 'gdigrab', monitorIndex = null, audioDelayMs = 0,
+    outputMode = 'udp', hlsPlaylistPath, hlsSegmentPattern,
   } = opts
 
   // A keyframe twice a second means a dropped packet or a briefly
@@ -222,10 +227,25 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
     )
   }
 
-  let udpUrl = `udp://${tvIp}:${tvPort}?pkt_size=1316`
-  if (localIp) udpUrl += `&localaddr=${localIp}`
-  // muxdelay/muxpreload 0 stop the TS muxer pre-buffering before it starts
-  // sending -- shaves startup latency off a live stream.
-  cmd.push('-f', 'mpegts', '-muxdelay', '0', '-muxpreload', '0', udpUrl)
+  if (outputMode === 'hls') {
+    if (!hlsPlaylistPath || !hlsSegmentPattern) {
+      throw new Error('HLS output requires playlist and segment paths.')
+    }
+    cmd.push(
+      '-f', 'hls',
+      '-hls_time', '1',
+      '-hls_list_size', '5',
+      '-hls_segment_type', 'mpegts',
+      '-hls_flags', 'delete_segments+append_list+omit_endlist+independent_segments+temp_file',
+      '-hls_segment_filename', hlsSegmentPattern,
+      hlsPlaylistPath,
+    )
+  } else {
+    let udpUrl = `udp://${tvIp}:${tvPort}?pkt_size=1316`
+    if (localIp) udpUrl += `&localaddr=${localIp}`
+    // muxdelay/muxpreload 0 stop the TS muxer pre-buffering before it starts
+    // sending -- shaves startup latency off a live stream.
+    cmd.push('-f', 'mpegts', '-muxdelay', '0', '-muxpreload', '0', udpUrl)
+  }
   return cmd
 }

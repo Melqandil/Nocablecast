@@ -8,12 +8,13 @@ Stream your Windows desktop to a TV over your own network. No internet, no cloud
 
 ## What it does
 
-Your PC captures the screen, encodes it on the GPU, and pushes it to VLC on your TV as a plain video stream. Anything that runs VLC works as a receiver — most smart TVs, Android TV boxes, Fire sticks, an old laptop plugged into a monitor.
+Your PC captures the screen, encodes it on the GPU, and sends it across your LAN. Use low-latency UDP with VLC or an Android receiver, or use the built-in HLS server with SS IPTV and similar apps on LG webOS and Samsung Tizen TVs.
 
 - **1080p60 with sound**, on hardware that can manage it
 - **Local network only** — the stream is bound to your LAN adapter, so it cannot use your internet connection even by accident
-- **Nothing to install on the TV** except VLC, which is free
+- **Only a receiver app on the TV** — VLC for UDP, or SS IPTV for HLS
 - **ffmpeg comes bundled** — no PATH setup, no separate download
+- **LG and Samsung support** — HLS mode publishes a ready-made SS IPTV playlist
 
 ## Install
 
@@ -30,7 +31,10 @@ optional; sending Windows system audio requires a loopback device such as
 
 ## Use it
 
-**On the TV**, install VLC, open **Network Stream**, and enter the address LANCAST shows you (it looks like `udp://@:1234`).
+**On the TV**, choose one of these receiver options:
+
+- **VLC / Android TV receiver:** select **UDP** in LANCAST, open VLC's **Network Stream**, and enter the address LANCAST shows you (usually `udp://@:1234`).
+- **LG webOS / Samsung Tizen:** install **SS IPTV**, select **HLS** in LANCAST, and add the displayed `http://.../nocablecast.m3u` address as an external playlist.
 
 **On the PC**, open LANCAST:
 
@@ -39,6 +43,16 @@ optional; sending Windows system audio requires a loopback device such as
 3. Press **Start**.
 
 The picture should appear on the TV within a few seconds.
+
+### LG or Samsung with SS IPTV
+
+1. Install **SS IPTV** from the TV's app store. Availability depends on the TV model and store region.
+2. In LANCAST, choose **HLS — LG / Samsung / IPTV apps**.
+3. Enter the TV's IP address so LANCAST binds the server to the correct network adapter.
+4. Press **Start**, then copy the **SS IPTV external playlist URL** shown by LANCAST.
+5. Add that URL as an external playlist in SS IPTV and open **Nocablecast Desktop**.
+
+The playlist and video segments are served only from this PC's selected LAN address. HLS normally has a few seconds more latency than UDP because the TV buffers short segments. If Windows Firewall asks, allow LANCAST on **Private networks** only.
 
 ## Sound
 
@@ -67,7 +81,7 @@ The default is `-112`, measured on one real TV. It is not a universal figure —
 
 **The picture freezes for a moment now and then.** The stream is plain UDP with no retransmission, which is what keeps it fast. A dropped packet — normal on Wi-Fi — costs up to half a second before the next keyframe restores the picture. Lower the bitrate, or put the TV on Ethernet.
 
-**Nothing arrives at the TV.** Check the port matches on both sides, and allow LANCAST through Windows Firewall on **Private** networks when prompted. Some routers block client-to-client traffic ("AP isolation" or "client isolation") — that has to be turned off in the router.
+**Nothing arrives at the TV.** Check the selected receiver mode and port. In UDP mode, the VLC port must match. In HLS mode, start LANCAST before opening the playlist and allow LANCAST through Windows Firewall on **Private** networks. Some routers block client-to-client traffic ("AP isolation" or "client isolation") — that has to be turned off in the router.
 
 ## Build it yourself
 
@@ -92,8 +106,9 @@ and attaches it to a GitHub release.
 
 ```
 Screen ──▶ Desktop Duplication (GPU) ──▶ NVENC ──┐
-                                                  ├──▶ MPEG-TS ──▶ UDP ──▶ VLC on the TV
-Audio ──▶ DirectShow (50ms chunks) ──▶ AAC ───────┘
+                                                  ├──▶ MPEG-TS ──▶ UDP ──▶ VLC / Android
+Audio ──▶ DirectShow (50ms chunks) ──▶ AAC ───────┤
+                                                  └──▶ HLS over HTTP ──▶ SS IPTV
 ```
 
 Two decisions carry most of the quality, and both were learned the hard way:

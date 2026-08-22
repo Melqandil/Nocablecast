@@ -1,8 +1,10 @@
 import net from 'node:net'
 
 export interface StreamSettingsInput {
+  outputMode?: 'udp' | 'hls'
   tvIp: string
   tvPort: string
+  hlsPort?: string
   bitrateKbps: string
   scaleWidth: string
   fps: string
@@ -33,8 +35,10 @@ export function validateStreamSettings(settings: StreamSettingsInput): string | 
     return 'TV IP must be a private local-network IPv4 address (for example 192.168.1.50).'
   }
 
-  if (integerInRange(settings.tvPort, 1, 65535) === null) {
-    return 'Port must be a whole number from 1 to 65535.'
+  const outputMode = settings.outputMode ?? 'udp'
+  const port = outputMode === 'hls' ? settings.hlsPort ?? '' : settings.tvPort
+  if (integerInRange(port, 1, 65535) === null) {
+    return `${outputMode === 'hls' ? 'HTTP' : 'UDP'} port must be a whole number from 1 to 65535.`
   }
 
   const width = integerInRange(settings.scaleWidth, 2, 16384)
