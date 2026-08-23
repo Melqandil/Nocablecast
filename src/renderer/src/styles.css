@@ -256,6 +256,7 @@ button, input { font: inherit; }
 }
 .skeuo-panel-body { padding: 13px; }
 
+.destination-panel .skeuo-panel-body,
 .picture-panel .skeuo-panel-body {
   height: clamp(250px, 38vh, 330px);
   overflow-y: scroll;
@@ -622,6 +623,49 @@ button, input { font: inherit; }
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.08em;
+}
+.latency-profile-readout {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid #5d5f58;
+  border-radius: 7px;
+  color: #d8dbd3;
+  background: linear-gradient(180deg, #4d504b, #2e312d);
+  box-shadow: inset 0 1px rgba(255,255,255,0.16), inset 0 -2px rgba(0,0,0,0.24), 0 1px rgba(255,255,255,0.55);
+}
+.latency-profile-readout.is-smooth {
+  border-color: #3f6548;
+  background: linear-gradient(180deg, #4c6553, #2e4535);
+}
+.latency-profile-led {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border: 1px solid #211d14;
+  border-radius: 50%;
+  background: #dda03b;
+  box-shadow: 0 0 9px rgba(221,160,59,0.64), inset 0 1px rgba(255,255,255,0.55);
+}
+.is-smooth .latency-profile-led {
+  background: var(--green-led);
+  box-shadow: 0 0 11px rgba(83,232,119,0.82), inset 0 1px rgba(255,255,255,0.65);
+}
+.latency-profile-readout strong,
+.latency-profile-readout small { display: block; }
+.latency-profile-readout strong {
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+}
+.latency-profile-readout small {
+  margin-top: 2px;
+  color: #bfc5bc;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 9px;
+  line-height: 1.35;
 }
 .skeuo-device-modal {
   width: min(94vw, 64rem);

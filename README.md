@@ -13,6 +13,7 @@ Your PC captures the screen, encodes it on the GPU, and sends it across your LAN
 - **A whole screen, one monitor, or just one application window**
 - **Physical receiver-style interface** with tactile controls and clear signal lights
 - **1080p60 with sound**, on hardware that can manage it
+- **Smooth low-latency profile** — sub-second HLS segments with live-edge recovery, plus immediate UDP packet flushing and burst protection
 - **Local network only** — the stream is bound to your LAN adapter, so it cannot use your internet connection even by accident
 - **No LG receiver app required** — HLS mode serves a remote-friendly page to the TV browser
 - **ffmpeg comes bundled** — no PATH setup, no separate download
@@ -52,7 +53,8 @@ install of v1.4.1 is manual; later releases can update themselves.
 1. Put in your TV's IP address. **Find TV** searches for it; **All devices** opens a large searchable IP/MAC popup if that doesn't turn it up. Click a row to fill the TV IP and close the popup automatically. Your TV also shows it under network settings.
 2. Under **What to stream**, choose a screen/monitor or one open application window.
 3. Pick a quality preset — **1080p60** for screen capture or **1080p30** for a single app window is a good starting point.
-4. Press **Start**.
+4. Keep **Transmission latency** on **Smooth low latency**. Use Compatibility only if an older TV refuses to play or repeatedly stalls.
+5. Press **Start**.
 
 The picture should appear on the TV within a few seconds.
 
@@ -64,7 +66,9 @@ The picture should appear on the TV within a few seconds.
 4. On the LG TV, open **Home → Web Browser** and enter the displayed address, such as `http://192.168.1.20:8090/tv`.
 5. Choose **PLAY STREAM**, then **FULLSCREEN**. The page automatically retries while the first HLS segments are being created.
 
-The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. HLS normally has a few seconds more latency than UDP because the TV buffers short segments. The live playlist deliberately uses the conservative HLS v3 tags supported by LG webOS. If Windows Firewall asks, allow LANCAST on **Private networks** only.
+The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. The Smooth profile uses complete keyframe-aligned sub-second MPEG-TS segments and starts close to the live edge, avoiding experimental HLS tags that older LG players reject. Compatibility restores the original one-second segments and larger live window. If Windows Firewall asks, allow LANCAST on **Private networks** only.
+
+For UDP, LANCAST now flushes packets immediately while keeping a small socket buffer to absorb normal keyframe bursts. Receiver buffering still matters: on wired Ethernet, start VLC **Network caching** around 200&nbsp;ms; on Wi-Fi, start around 400&nbsp;ms. Raise it only if playback breaks up, since every extra millisecond of receiver cache adds delay.
 
 ## Stream one application
 

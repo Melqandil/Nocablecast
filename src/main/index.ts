@@ -274,6 +274,7 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
         bindAddress: bindIp,
         advertisedAddress: bindIp,
         port: parseInt(settings.hlsPort, 10),
+        lowLatency: settings.latencyMode === 'smooth',
       })
     } catch (error) {
       await stopHlsOutput()
@@ -283,6 +284,9 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
   }
 
   log(`This PC's LAN IP: ${localIp ?? '(unknown)'}`)
+  log(settings.latencyMode === 'smooth'
+    ? `Latency profile: Smooth low latency (${outputMode === 'hls' ? 'sub-second complete HLS segments with live-edge recovery' : 'immediate UDP packet flush with burst protection'}).`
+    : 'Latency profile: Compatibility.')
   if (hlsInfo) {
     log(`LG browser receiver: ${hlsInfo.tvUrl}`)
     log(`SS IPTV playlist: ${hlsInfo.playlistUrl}`)
@@ -306,7 +310,7 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     fps: settings.fps.trim(), monitor: capturesWindow ? null : monitor,
     audioDevice: audioDevice || null, localIp: bindIp, capture, monitorIndex,
     windowHandle, audioDelayMs,
-    outputMode,
+    outputMode, latencyMode: settings.latencyMode,
     hlsPlaylistPath: hlsRoot ? join(hlsRoot, 'live.m3u8') : undefined,
     hlsSegmentPattern: hlsRoot ? join(hlsRoot, 'segment_%06d.ts') : undefined,
   })

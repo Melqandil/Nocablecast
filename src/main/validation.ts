@@ -2,6 +2,7 @@ import net from 'node:net'
 
 export interface StreamSettingsInput {
   outputMode?: 'udp' | 'hls'
+  latencyMode?: 'smooth' | 'compatibility'
   tvIp: string
   tvPort: string
   hlsPort?: string
@@ -31,6 +32,10 @@ export function isLocalIpv4(value: string): boolean {
 
 /** Returns a user-facing error, or null when the stream can safely start. */
 export function validateStreamSettings(settings: StreamSettingsInput): string | null {
+  if (settings.latencyMode && !['smooth', 'compatibility'].includes(settings.latencyMode)) {
+    return 'Latency profile must be Smooth low latency or Compatibility.'
+  }
+
   if (!isLocalIpv4(settings.tvIp)) {
     return 'TV IP must be a private local-network IPv4 address (for example 192.168.1.50).'
   }

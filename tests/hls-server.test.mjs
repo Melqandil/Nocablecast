@@ -17,6 +17,7 @@ test('HLS server exposes the TV receiver, IPTV playlist, and generated stream fi
       bindAddress: '127.0.0.1',
       advertisedAddress: '127.0.0.1',
       port: 0,
+      lowLatency: true,
     })
 
     const receiver = await fetch(info.tvUrl)
@@ -28,6 +29,11 @@ test('HLS server exposes the TV receiver, IPTV playlist, and generated stream fi
     assert.match(receiverHtml, /\/live\.m3u8/)
     assert.match(receiverHtml, /id="play"[^>]*>PLAY STREAM</)
     assert.match(receiverHtml, /id="fullscreen"[^>]*>FULLSCREEN</)
+    assert.match(receiverHtml, /smooth low-latency mode/)
+    assert.match(receiverHtml, /var lowLatency = true/)
+    assert.match(receiverHtml, /liveEdgeTarget = 1\.1/)
+    assert.match(receiverHtml, /hardCatchupThreshold = 2\.2/)
+    assert.match(receiverHtml, /moveToLiveEdge\(false\)/)
     assert.doesNotMatch(receiverHtml, /https?:\/\//)
 
     const receiverHome = await fetch(info.tvUrl.replace('/tv', '/'))

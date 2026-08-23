@@ -166,6 +166,35 @@ test('HLS output writes a short rolling playlist instead of a UDP destination', 
   assert.ok(!cmd.some((arg) => String(arg).startsWith('udp://')))
 })
 
+test('smooth HLS uses valid complete sub-second segments and a short live window', () => {
+  const cmd = buildCommand({
+    ...base,
+    capture: 'ddagrab',
+    outputMode: 'hls',
+    latencyMode: 'smooth',
+    hlsPlaylistPath: 'C:\\stream\\live.m3u8',
+    hlsSegmentPattern: 'C:\\stream\\segment_%06d.ts',
+  })
+  assert.equal(cmd[cmd.indexOf('-hls_time') + 1], '0.66')
+  assert.equal(cmd[cmd.indexOf('-hls_list_size') + 1], '4')
+  assert.equal(cmd[cmd.indexOf('-g') + 1], '20')
+  assert.equal(cmd[cmd.indexOf('-flush_packets') + 1], '1')
+  assert.match(cmd[cmd.indexOf('-hls_flags') + 1], /temp_file/,
+    'LG must only see complete segments to avoid decoder stutter')
+})
+
+test('smooth UDP flushes promptly while absorbing normal frame bursts', () => {
+  const cmd = buildCommand({ ...base, capture: 'ddagrab', latencyMode: 'smooth' })
+  assert.equal(cmd[cmd.indexOf('-avioflags') + 1], 'direct')
+  assert.equal(cmd[cmd.indexOf('-flush_packets') + 1], '1')
+  assert.equal(cmd[cmd.indexOf('-mpegts_flags') + 1], '+resend_headers')
+  const url = cmd.at(-1)
+  assert.match(url, /pkt_size=1316/)
+  assert.match(url, /buffer_size=65536/)
+  assert.match(url, /connect=1/)
+  assert.match(url, /localaddr=192\.168\.1\.2/)
+})
+
 test('HLS output refuses to run without writable output paths', () => {
   assert.throws(
     () => buildCommand({ ...base, outputMode: 'hls' }),
@@ -180,6 +209,16 @@ test('keyframes are frequent enough for quick recovery', () => {
     const cmd = buildCommand({ ...base, fps, capture: 'ddagrab' })
     assert.equal(cmd[cmd.indexOf('-g') + 1], String(parseInt(fps, 10) / 2))
   }
+  const smoothHls = buildCommand({
+    ...base,
+    fps: '60',
+    capture: 'ddagrab',
+    outputMode: 'hls',
+    latencyMode: 'smooth',
+    hlsPlaylistPath: 'C:\\stream\\live.m3u8',
+    hlsSegmentPattern: 'C:\\stream\\segment_%06d.ts',
+  })
+  assert.equal(smoothHls[smoothHls.indexOf('-g') + 1], '20')
 })
 
 test('x264-only options are not passed to GPU encoders', () => {

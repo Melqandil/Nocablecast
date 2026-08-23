@@ -35,6 +35,11 @@ const OUTPUTS: Option[] = [
   { key: 'hls', label: 'HLS — LG TV web browser' },
 ]
 
+const LATENCY_MODES: Option[] = [
+  { key: 'smooth', label: 'Smooth low latency (recommended)' },
+  { key: 'compatibility', label: 'Compatibility (older TVs)' },
+]
+
 const PRESETS = [
   { label: '1080p60', width: '1920', fps: '60', bitrate: '8000' },
   { label: '1080p30', width: '1920', fps: '30', bitrate: '6000' },
@@ -273,7 +278,7 @@ export default function App() {
 
       <main className="receiver-deck grid flex-1 gap-4 overflow-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* ------------------------------------------------ destination -- */}
-        <Panel title="01 · Destination">
+        <Panel title="01 · Destination" className="destination-panel">
           <div className="flex flex-col gap-3">
             <Field label="Receiver type">
               <BrutalSelect ariaLabel="Receiver type" options={OUTPUTS}
@@ -315,6 +320,23 @@ export default function App() {
                     onClick={() => { api.copy(receiverUrl); addLog('Receiver URL copied.') }}>Copy</Button>
                 </div>
               </Field>
+            </div>
+
+            <Field label="Transmission latency">
+              <BrutalSelect ariaLabel="Transmission latency" options={LATENCY_MODES}
+                value={settings.latencyMode}
+                onChange={(k) => set('latencyMode', k as Settings['latencyMode'])} />
+            </Field>
+            <div className={`latency-profile-readout ${settings.latencyMode === 'smooth' ? 'is-smooth' : ''}`}>
+              <span className="latency-profile-led" aria-hidden />
+              <div>
+                <strong>{settings.latencyMode === 'smooth' ? 'LOW DELAY · SMOOTH GUARD' : 'COMPATIBILITY BUFFER'}</strong>
+                <small>{settings.latencyMode === 'smooth'
+                  ? (isHls
+                    ? 'Sub-second complete segments · live-edge recovery · no experimental HLS tags'
+                    : 'Immediate packet flush · anti-burst socket buffer · fast keyframe recovery')
+                  : 'Use this only if an older receiver stalls or refuses the smooth profile.'}</small>
+              </div>
             </div>
 
             {isHls && (

@@ -47,6 +47,8 @@ export interface BuildCommandOptions {
   /** Lip-sync correction in ms. Negative pulls audio earlier. */
   audioDelayMs?: number
   outputMode?: 'udp' | 'hls'
+  /** Smooth lowers transport latency; compatibility preserves the older conservative output. */
+  latencyMode?: 'smooth' | 'compatibility'
   /** Writable paths used only when outputMode is hls. */
   hlsPlaylistPath?: string
   hlsSegmentPattern?: string
@@ -147,12 +149,16 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
     ffmpeg, encoder, encoderArgs, tvIp, tvPort, bitrateKbps, scaleWidth, fps,
     monitor = null, audioDevice = null, localIp = null,
     capture = 'gdigrab', monitorIndex = null, windowHandle = null, audioDelayMs = 0,
-    outputMode = 'udp', hlsPlaylistPath, hlsSegmentPattern,
+    outputMode = 'udp', latencyMode = 'compatibility', hlsPlaylistPath, hlsSegmentPattern,
   } = opts
+  const smoothLatency = latencyMode === 'smooth'
 
-  // A keyframe twice a second means a dropped packet or a briefly
-  // overwhelmed TV decoder costs ~0.5s before the picture recovers.
-  const gop = Math.max(1, Math.floor(parseInt(fps, 10) / 2))
+  // UDP and compatibility HLS use two keyframes per second. Smooth HLS uses
+  // three so ffmpeg can make valid sub-second segments that still begin on
+  // keyframes. (An exact 0.5s HLS target is invalid with some ffmpeg builds:
+  // they emit EXT-X-TARGETDURATION:0.)
+  const gopDivisor = smoothLatency && outputMode === 'hls' ? 3 : 2
+  const gop = Math.max(1, Math.floor(parseInt(fps, 10) / gopDivisor))
 
   // A bitrate ceiling plus a full second of rate-control buffer. A tighter
   // window forces the encoder to dump quality on busy frames, which looks
@@ -242,10 +248,16 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
     if (!hlsPlaylistPath || !hlsSegmentPattern) {
       throw new Error('HLS output requires playlist and segment paths.')
     }
+    if (smoothLatency) {
+      // The HLS player still receives complete segments (important for LG
+      // stability), but keyframe-aligned sub-second segments shorten the
+      // native player's segment-count buffer without experimental LL-HLS.
+      cmd.push('-flush_packets', '1')
+    }
     cmd.push(
       '-f', 'hls',
-      '-hls_time', '1',
-      '-hls_list_size', '5',
+      '-hls_time', smoothLatency ? '0.66' : '1',
+      '-hls_list_size', smoothLatency ? '4' : '5',
       '-hls_segment_type', 'mpegts',
       // Keep the live manifest deliberately conservative for TV browsers.
       // In particular, LG webOS rejects EXT-X-INDEPENDENT-SEGMENTS and is
@@ -257,10 +269,22 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
     )
   } else {
     let udpUrl = `udp://${tvIp}:${tvPort}?pkt_size=1316`
+    if (smoothLatency) udpUrl += '&buffer_size=65536&connect=1'
     if (localIp) udpUrl += `&localaddr=${localIp}`
     // muxdelay/muxpreload 0 stop the TS muxer pre-buffering before it starts
     // sending -- shaves startup latency off a live stream.
-    cmd.push('-f', 'mpegts', '-muxdelay', '0', '-muxpreload', '0', udpUrl)
+    if (smoothLatency) {
+      // Direct AVIO plus per-packet flush prevents ffmpeg from accumulating
+      // an extra output batch. A modest 64 KiB socket buffer absorbs normal
+      // frame bursts without creating a long latency queue. Repeated MPEG-TS
+      // headers let a receiver recover cleanly at the next keyframe.
+      cmd.push('-avioflags', 'direct', '-flush_packets', '1')
+    }
+    cmd.push(
+      '-f', 'mpegts',
+      ...(smoothLatency ? ['-mpegts_flags', '+resend_headers'] : []),
+      '-muxdelay', '0', '-muxpreload', '0', udpUrl,
+    )
   }
   return cmd
 }

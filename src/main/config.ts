@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path'
 
 export interface Settings {
   outputMode: 'udp' | 'hls'
+  latencyMode: 'smooth' | 'compatibility'
   tvIp: string
   tvPort: string
   hlsPort: string
@@ -24,6 +25,7 @@ export interface Settings {
 
 export const DEFAULTS: Settings = {
   outputMode: 'udp',
+  latencyMode: 'smooth',
   tvIp: '192.168.1.50',
   tvPort: '1234',
   hlsPort: '8090',

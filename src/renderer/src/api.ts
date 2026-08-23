@@ -1,5 +1,6 @@
 export interface Settings {
   outputMode: 'udp' | 'hls'
+  latencyMode: 'smooth' | 'compatibility'
   tvIp: string
   tvPort: string
   hlsPort: string

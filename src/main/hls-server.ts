@@ -7,6 +7,7 @@ export interface HlsServerOptions {
   bindAddress: string
   advertisedAddress: string
   port: number
+  lowLatency?: boolean
 }
 
 export interface HlsServerInfo {
@@ -33,7 +34,7 @@ function sendText(
   response.end(body)
 }
 
-function tvReceiverPage(): string {
+function tvReceiverPage(lowLatency = false): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -80,7 +81,7 @@ function tvReceiverPage(): string {
       <button id="retry" type="button">RETRY</button>
       <button id="fullscreen" type="button">FULLSCREEN</button>
     </div>
-    <div class="hint">PC and TV must be on the same local network · no cloud connection</div>
+    <div class="hint">PC and TV must be on the same local network · ${lowLatency ? 'smooth low-latency mode' : 'compatibility mode'} · no cloud connection</div>
   </main>
   <script>
     (function () {
@@ -88,6 +89,26 @@ function tvReceiverPage(): string {
       var screen = document.getElementById('screen');
       var status = document.getElementById('status');
       var retryTimer = 0;
+      var lowLatency = ${lowLatency ? 'true' : 'false'};
+      // Stay far enough behind the last complete segment to survive a normal
+      // playlist refresh without starving, but recover if the TV drifts back.
+      var liveEdgeTarget = 1.1;
+      var hardCatchupThreshold = 2.2;
+
+      function moveToLiveEdge(force) {
+        if (!lowLatency || video.paused || !video.seekable || !video.seekable.length) return;
+        try {
+          var range = video.seekable.length - 1;
+          var start = video.seekable.start(range);
+          var end = video.seekable.end(range);
+          var behind = end - video.currentTime;
+          if (force || behind > hardCatchupThreshold) {
+            video.currentTime = Math.max(start, end - liveEdgeTarget);
+          }
+        } catch (error) {
+          // Some early webOS players briefly expose a changing seekable range.
+        }
+      }
 
       function setStatus(message, live) {
         status.textContent = message;
@@ -116,7 +137,13 @@ function tvReceiverPage(): string {
 
       video.addEventListener('playing', function () {
         screen.className = 'screen has-picture';
-        setStatus('Live from PC', true);
+        setStatus(lowLatency ? 'Live from PC · low delay' : 'Live from PC', true);
+      });
+      video.addEventListener('loadedmetadata', function () {
+        window.setTimeout(function () { moveToLiveEdge(true); }, 50);
+      });
+      video.addEventListener('play', function () {
+        window.setTimeout(function () { moveToLiveEdge(true); }, 80);
       });
       video.addEventListener('waiting', function () { setStatus('Buffering…', false); });
       video.addEventListener('stalled', function () { setStatus('Waiting for PC…', false); });
@@ -135,6 +162,7 @@ function tvReceiverPage(): string {
       });
 
       window.setTimeout(playStream, 300);
+      window.setInterval(function () { moveToLiveEdge(false); }, 1500);
     }());
   </script>
 </body>
@@ -161,7 +189,7 @@ export async function startHlsServer(options: HlsServerOptions): Promise<HlsServ
 
     const pathname = new URL(request.url ?? '/', 'http://localhost').pathname
     if (pathname === '/' || pathname === '/tv') {
-      const body = tvReceiverPage()
+      const body = tvReceiverPage(options.lowLatency)
       if (method === 'HEAD') {
         response.writeHead(200, {
           'Cache-Control': 'no-store, no-cache, must-revalidate',

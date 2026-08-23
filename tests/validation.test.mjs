@@ -4,6 +4,7 @@ import { isLocalIpv4, validateStreamSettings } from '../out-test/validation.js'
 
 const valid = {
   outputMode: 'udp',
+  latencyMode: 'smooth',
   tvIp: '192.168.1.50',
   tvPort: '1234',
   hlsPort: '8090',
@@ -38,4 +39,8 @@ test('invalid numeric stream settings return useful errors', () => {
   assert.match(validateStreamSettings({ ...valid, fps: '0' }), /FPS/)
   assert.match(validateStreamSettings({ ...valid, bitrateKbps: '-1' }), /Bitrate/)
   assert.match(validateStreamSettings({ ...valid, audioDelayMs: '1.5' }), /Sync/)
+})
+
+test('unknown latency profiles are rejected', () => {
+  assert.match(validateStreamSettings({ ...valid, latencyMode: 'instant' }), /Latency profile/)
 })
