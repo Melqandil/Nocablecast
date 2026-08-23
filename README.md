@@ -13,7 +13,7 @@ Your PC captures the screen, encodes it on the GPU, and sends it across your LAN
 - **A whole screen, one monitor, or just one application window**
 - **Physical receiver-style interface** with tactile controls and clear signal lights
 - **1080p60 with sound**, on hardware that can manage it
-- **Smooth low-latency profile** — sub-second HLS segments with live-edge recovery, plus immediate UDP packet flushing and burst protection
+- **Smooth low-latency profile** — TV-safe one-second HLS segments with a stable live-edge cushion, plus immediate UDP packet flushing and burst protection
 - **Local network only** — the stream is bound to your LAN adapter, so it cannot use your internet connection even by accident
 - **No LG receiver app required** — HLS mode serves a remote-friendly page to the TV browser
 - **ffmpeg comes bundled** — no PATH setup, no separate download
@@ -66,7 +66,7 @@ The picture should appear on the TV within a few seconds.
 4. On the LG TV, open **Home → Web Browser** and enter the displayed address, such as `http://192.168.1.20:8090/tv`.
 5. Choose **PLAY STREAM**, then **FULLSCREEN**. The page automatically retries while the first HLS segments are being created.
 
-The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. The Smooth profile uses complete keyframe-aligned sub-second MPEG-TS segments and starts close to the live edge, avoiding experimental HLS tags that older LG players reject. Compatibility restores the original one-second segments and larger live window. If Windows Firewall asks, allow LANCAST on **Private networks** only.
+The receiver page, playlist, and video segments are served only from this PC's selected LAN address. It has no external scripts, account, cloud service, or internet dependency. The Smooth profile uses complete keyframe-aligned one-second MPEG-TS segments, keeps a three-second playback cushion, and retains recently removed segments long enough for slower TV requests. This avoids both experimental HLS tags that older LG players reject and the repeated buffering caused by starting too close to an unfinished live edge. Compatibility disables LANCAST's live-edge management. If Windows Firewall asks, allow LANCAST on **Private networks** only.
 
 For UDP, LANCAST now flushes packets immediately while keeping a small socket buffer to absorb normal keyframe bursts. Receiver buffering still matters: on wired Ethernet, start VLC **Network caching** around 200&nbsp;ms; on Wi-Fi, start around 400&nbsp;ms. Raise it only if playback breaks up, since every extra millisecond of receiver cache adds delay.
 

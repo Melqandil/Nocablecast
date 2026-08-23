@@ -285,7 +285,7 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
 
   log(`This PC's LAN IP: ${localIp ?? '(unknown)'}`)
   log(settings.latencyMode === 'smooth'
-    ? `Latency profile: Smooth low latency (${outputMode === 'hls' ? 'sub-second complete HLS segments with live-edge recovery' : 'immediate UDP packet flush with burst protection'}).`
+    ? `Latency profile: Smooth low latency (${outputMode === 'hls' ? 'TV-safe one-second HLS segments with a stable live-edge cushion' : 'immediate UDP packet flush with burst protection'}).`
     : 'Latency profile: Compatibility.')
   if (hlsInfo) {
     log(`LG browser receiver: ${hlsInfo.tvUrl}`)

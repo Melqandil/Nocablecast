@@ -90,13 +90,16 @@ function tvReceiverPage(lowLatency = false): string {
       var status = document.getElementById('status');
       var retryTimer = 0;
       var lowLatency = ${lowLatency ? 'true' : 'false'};
-      // Stay far enough behind the last complete segment to survive a normal
-      // playlist refresh without starving, but recover if the TV drifts back.
-      var liveEdgeTarget = 1.1;
-      var hardCatchupThreshold = 2.2;
+      // TV-native HLS players normally join about three target durations
+      // behind live. The previous 1.1-second target repeatedly starved LG's
+      // decoder; this still stays close to live but keeps three complete
+      // one-second segments ready for uninterrupted audio and video.
+      var liveEdgeTarget = 3.2;
+      var hardCatchupThreshold = 5.0;
 
       function moveToLiveEdge(force) {
         if (!lowLatency || video.paused || !video.seekable || !video.seekable.length) return;
+        if (!force && video.readyState < 3) return;
         try {
           var range = video.seekable.length - 1;
           var start = video.seekable.start(range);
@@ -140,10 +143,7 @@ function tvReceiverPage(lowLatency = false): string {
         setStatus(lowLatency ? 'Live from PC · low delay' : 'Live from PC', true);
       });
       video.addEventListener('loadedmetadata', function () {
-        window.setTimeout(function () { moveToLiveEdge(true); }, 50);
-      });
-      video.addEventListener('play', function () {
-        window.setTimeout(function () { moveToLiveEdge(true); }, 80);
+        window.setTimeout(function () { moveToLiveEdge(true); }, 250);
       });
       video.addEventListener('waiting', function () { setStatus('Buffering…', false); });
       video.addEventListener('stalled', function () { setStatus('Waiting for PC…', false); });
@@ -162,7 +162,7 @@ function tvReceiverPage(lowLatency = false): string {
       });
 
       window.setTimeout(playStream, 300);
-      window.setInterval(function () { moveToLiveEdge(false); }, 1500);
+      window.setInterval(function () { moveToLiveEdge(false); }, 3000);
     }());
   </script>
 </body>

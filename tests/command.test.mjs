@@ -166,7 +166,7 @@ test('HLS output writes a short rolling playlist instead of a UDP destination', 
   assert.ok(!cmd.some((arg) => String(arg).startsWith('udp://')))
 })
 
-test('smooth HLS uses valid complete sub-second segments and a short live window', () => {
+test('smooth HLS keeps a TV-safe live window and stale-request grace period', () => {
   const cmd = buildCommand({
     ...base,
     capture: 'ddagrab',
@@ -175,9 +175,10 @@ test('smooth HLS uses valid complete sub-second segments and a short live window
     hlsPlaylistPath: 'C:\\stream\\live.m3u8',
     hlsSegmentPattern: 'C:\\stream\\segment_%06d.ts',
   })
-  assert.equal(cmd[cmd.indexOf('-hls_time') + 1], '0.66')
-  assert.equal(cmd[cmd.indexOf('-hls_list_size') + 1], '4')
-  assert.equal(cmd[cmd.indexOf('-g') + 1], '20')
+  assert.equal(cmd[cmd.indexOf('-hls_time') + 1], '1')
+  assert.equal(cmd[cmd.indexOf('-hls_list_size') + 1], '6')
+  assert.equal(cmd[cmd.indexOf('-hls_delete_threshold') + 1], '3')
+  assert.equal(cmd[cmd.indexOf('-g') + 1], '30')
   assert.equal(cmd[cmd.indexOf('-flush_packets') + 1], '1')
   assert.match(cmd[cmd.indexOf('-hls_flags') + 1], /temp_file/,
     'LG must only see complete segments to avoid decoder stutter')
@@ -218,7 +219,7 @@ test('keyframes are frequent enough for quick recovery', () => {
     hlsPlaylistPath: 'C:\\stream\\live.m3u8',
     hlsSegmentPattern: 'C:\\stream\\segment_%06d.ts',
   })
-  assert.equal(smoothHls[smoothHls.indexOf('-g') + 1], '20')
+  assert.equal(smoothHls[smoothHls.indexOf('-g') + 1], '30')
 })
 
 test('x264-only options are not passed to GPU encoders', () => {

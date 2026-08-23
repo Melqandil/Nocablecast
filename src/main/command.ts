@@ -153,12 +153,9 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
   } = opts
   const smoothLatency = latencyMode === 'smooth'
 
-  // UDP and compatibility HLS use two keyframes per second. Smooth HLS uses
-  // three so ffmpeg can make valid sub-second segments that still begin on
-  // keyframes. (An exact 0.5s HLS target is invalid with some ffmpeg builds:
-  // they emit EXT-X-TARGETDURATION:0.)
-  const gopDivisor = smoothLatency && outputMode === 'hls' ? 3 : 2
-  const gop = Math.max(1, Math.floor(parseInt(fps, 10) / gopDivisor))
+  // Two keyframes per second bounds UDP recovery and lets one-second HLS
+  // segments close exactly on an IDR without an unnecessarily dense GOP.
+  const gop = Math.max(1, Math.floor(parseInt(fps, 10) / 2))
 
   // A bitrate ceiling plus a full second of rate-control buffer. A tighter
   // window forces the encoder to dump quality on busy frames, which looks
@@ -249,15 +246,19 @@ export function buildCommand(opts: BuildCommandOptions): string[] {
       throw new Error('HLS output requires playlist and segment paths.')
     }
     if (smoothLatency) {
-      // The HLS player still receives complete segments (important for LG
-      // stability), but keyframe-aligned sub-second segments shorten the
-      // native player's segment-count buffer without experimental LL-HLS.
+      // The HLS player receives only complete segments. Per-packet flushing
+      // makes each completed segment visible without another output batch.
       cmd.push('-flush_packets', '1')
     }
     cmd.push(
       '-f', 'hls',
-      '-hls_time', smoothLatency ? '0.66' : '1',
-      '-hls_list_size', smoothLatency ? '4' : '5',
+      '-hls_time', '1',
+      // Six seconds gives TV-native players their normal three-target-duration
+      // safety cushion without increasing the chosen live-edge offset.
+      '-hls_list_size', smoothLatency ? '6' : '5',
+      // Keep recently removed segments on disk long enough for a slower TV
+      // request that was made just before the rolling playlist advanced.
+      ...(smoothLatency ? ['-hls_delete_threshold', '3'] : []),
       '-hls_segment_type', 'mpegts',
       // Keep the live manifest deliberately conservative for TV browsers.
       // In particular, LG webOS rejects EXT-X-INDEPENDENT-SEGMENTS and is

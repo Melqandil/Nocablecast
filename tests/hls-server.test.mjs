@@ -31,8 +31,9 @@ test('HLS server exposes the TV receiver, IPTV playlist, and generated stream fi
     assert.match(receiverHtml, /id="fullscreen"[^>]*>FULLSCREEN</)
     assert.match(receiverHtml, /smooth low-latency mode/)
     assert.match(receiverHtml, /var lowLatency = true/)
-    assert.match(receiverHtml, /liveEdgeTarget = 1\.1/)
-    assert.match(receiverHtml, /hardCatchupThreshold = 2\.2/)
+    assert.match(receiverHtml, /liveEdgeTarget = 3\.2/)
+    assert.match(receiverHtml, /hardCatchupThreshold = 5\.0/)
+    assert.match(receiverHtml, /video\.readyState < 3/)
     assert.match(receiverHtml, /moveToLiveEdge\(false\)/)
     assert.doesNotMatch(receiverHtml, /https?:\/\//)
 

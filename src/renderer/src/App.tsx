@@ -333,7 +333,7 @@ export default function App() {
                 <strong>{settings.latencyMode === 'smooth' ? 'LOW DELAY · SMOOTH GUARD' : 'COMPATIBILITY BUFFER'}</strong>
                 <small>{settings.latencyMode === 'smooth'
                   ? (isHls
-                    ? 'Sub-second complete segments · live-edge recovery · no experimental HLS tags'
+                    ? 'TV-safe 1 s segments · 3 s safety buffer · live-edge recovery'
                     : 'Immediate packet flush · anti-burst socket buffer · fast keyframe recovery')
                   : 'Use this only if an older receiver stalls or refuses the smooth profile.'}</small>
               </div>
