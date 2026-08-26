@@ -8,6 +8,15 @@ const settings = {
 }
 
 const noEvent = () => () => undefined
+const fallbackPreview = (callback: (frame: Uint8Array) => void) => {
+  let cancelled = false
+  const sendFrame = async () => {
+    const image = await fetch('/docs/screenshot.png')
+    if (!cancelled) callback(new Uint8Array(await image.arrayBuffer()))
+  }
+  const timer = window.setInterval(() => { void sendFrame() }, 800)
+  return () => { cancelled = true; window.clearInterval(timer) }
+}
 window.lancast = {
   loadSettings: async () => settings,
   saveSettings: async () => true,
@@ -49,6 +58,7 @@ window.lancast = {
   onScanProgress: noEvent,
   onUpdateStatus: noEvent,
   onPhoneCameraSignal: noEvent,
+  onPhoneCameraFrame: fallbackPreview,
   onPhoneCameraState: noEvent,
 }
 

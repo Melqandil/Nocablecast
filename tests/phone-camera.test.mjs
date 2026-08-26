@@ -36,6 +36,7 @@ test('phone camera serves local setup over HTTP and signals media over authentic
   const root = await mkdtemp(join(tmpdir(), 'lancast-phone-camera-'))
   const [setupPort, httpsPort] = await Promise.all([freePort(), freePort()])
   const signals = []
+  const frames = []
   const states = []
   const protectSecret = (value) => `protected:${Buffer.from(value).toString('base64')}`
   const unprotectSecret = (value) => Buffer.from(value.slice('protected:'.length), 'base64').toString()
@@ -50,6 +51,7 @@ test('phone camera serves local setup over HTTP and signals media over authentic
       protectSecret,
       unprotectSecret,
       onSignal: (message) => signals.push(message),
+      onFrame: (frame) => frames.push(frame),
       onState: (state, message) => states.push({ state, message }),
     })
 
@@ -76,6 +78,12 @@ test('phone camera serves local setup over HTTP and signals media over authentic
     await new Promise((resolve) => setTimeout(resolve, 30))
     assert.equal(signals[0].type, 'offer')
     assert.equal(states.some(({ state }) => state === 'connected'), true)
+    const jpeg = Buffer.alloc(64)
+    jpeg[0] = 0xff; jpeg[1] = 0xd8; jpeg[2] = 0xff
+    socket.send(jpeg)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    assert.equal(frames.length, 1)
+    assert.deepEqual([...frames[0].subarray(0, 3)], [0xff, 0xd8, 0xff])
     assert.equal(states.some(({ state }) => state === 'streaming'), true)
 
     const received = waitForSocket(socket, 'message')

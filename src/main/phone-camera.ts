@@ -31,6 +31,7 @@ export interface PhoneCameraServerOptions {
   protectSecret(value: string): string
   unprotectSecret(value: string): string
   onSignal(message: unknown): void
+  onFrame(frame: Uint8Array): void
   onState(state: PhoneCameraState, message: string): void
 }
 
@@ -228,10 +229,11 @@ function setupPage(info: Pick<PhoneCameraInfo, 'phoneUrl' | 'certificateName'>):
 <meta charset="utf-8"><title>Set up LANCAST Phone Camera</title><style>${phoneCss()}</style></head>
 <body><main class="card setup"><div class="brand">LANCAST</div><h1>One-time secure setup</h1>
 <p>This certificate lets your phone trust only the private camera page hosted by this LANCAST PC.</p>
-<ol><li><a class="button" href="/lancast-camera.mobileconfig">1 · Download certificate</a></li>
-<li>Open <b>Settings → General → VPN &amp; Device Management</b> and install <b>${xml(info.certificateName)}</b>.</li>
+<ol><li>Open this setup page in <b>Safari</b>. Chrome may save the profile as an ordinary file.</li>
+<li><a class="button" href="/lancast-camera.mobileconfig">2 · Download certificate</a></li>
+<li>Within eight minutes, open the main <b>Settings</b> screen, tap <b>Profile Downloaded</b>, then install <b>${xml(info.certificateName)}</b>.</li>
 <li>Open <b>Settings → General → About → Certificate Trust Settings</b> and enable full trust for it.</li>
-<li><a class="button secondary" href="${xml(info.phoneUrl)}">4 · Open secure camera</a></li></ol>
+<li><a class="button secondary" href="${xml(info.phoneUrl)}">5 · Open secure camera</a></li></ol>
 <p class="small">No internet, cloud service, or account is used. Remove the profile later from VPN &amp; Device Management if you no longer use this PC.</p>
 </main></body></html>`
 }
@@ -245,15 +247,18 @@ function phonePage(token: string): string {
 <meta charset="utf-8"><title>LANCAST Phone Camera</title><style>${phoneCss()}</style></head>
 <body><main class="card camera"><div class="brand">LANCAST</div><h1>Phone Camera</h1>
 <div id="status" class="status">Ready to connect</div><video id="preview" autoplay muted playsinline></video>
+<canvas id="transport" hidden></canvas>
 <div class="row"><button id="start">START CAMERA</button><button id="flip" class="secondary">FLIP</button></div>
-<p class="hint">Keep this page open and the phone unlocked. Video travels directly to this PC over your local network.</p></main>
+<p class="hint">Keep this page open and the phone unlocked. LANCAST tries WebRTC first and automatically uses the same encrypted local connection if UDP is blocked.</p></main>
 <script>(function(){
-var preview=document.getElementById('preview');var status=document.getElementById('status');var socket=null;var peer=null;var stream=null;var facing='environment';var pendingCandidates=[];
+var preview=document.getElementById('preview');var transport=document.getElementById('transport');var status=document.getElementById('status');var socket=null;var peer=null;var stream=null;var facing='environment';var pendingCandidates=[];var fallbackTimer=null;var fallbackRun=0;
 function setStatus(text,live){status.textContent=text;status.className=live?'status live':'status';}
 function send(message){if(socket&&socket.readyState===1)socket.send(JSON.stringify(message));}
-function disconnect(){pendingCandidates=[];if(peer){peer.close();peer=null;}if(socket){socket.onclose=null;socket.close();socket=null;}if(stream){stream.getTracks().forEach(function(track){track.stop();});stream=null;}}
+function stopFallback(){fallbackRun++;if(fallbackTimer){clearTimeout(fallbackTimer);fallbackTimer=null;}}
+function startFallback(){stopFallback();var run=fallbackRun;setStatus('LIVE TO PC · SECURE FALLBACK',true);send({type:'fallback-started'});var context=transport.getContext('2d',{alpha:false});function next(delay){if(run===fallbackRun)fallbackTimer=setTimeout(pump,delay);}function pump(){if(run!==fallbackRun)return;if(peer&&peer.connectionState==='connected'){stopFallback();return;}if(!context||!socket||socket.readyState!==1||!stream||preview.readyState<2||socket.bufferedAmount>700000){next(70);return;}var width=960;var height=540;transport.width=width;transport.height=height;var sw=preview.videoWidth||width;var sh=preview.videoHeight||height;var scale=Math.min(width/sw,height/sh);var dw=Math.round(sw*scale);var dh=Math.round(sh*scale);context.fillStyle='#000';context.fillRect(0,0,width,height);context.drawImage(preview,(width-dw)/2,(height-dh)/2,dw,dh);transport.toBlob(function(blob){if(!blob){next(70);return;}blob.arrayBuffer().then(function(buffer){if(run===fallbackRun&&socket&&socket.readyState===1&&socket.bufferedAmount<700000)socket.send(buffer);}).finally(function(){next(55);});},'image/jpeg',0.76);}pump();}
+function disconnect(){stopFallback();pendingCandidates=[];if(peer){peer.close();peer=null;}if(socket){socket.onclose=null;socket.close();socket=null;}if(stream){stream.getTracks().forEach(function(track){track.stop();});stream=null;}}
 function connectSocket(){return new Promise(function(resolve,reject){socket=new WebSocket('wss://'+location.host+'/camera?token=${token}');socket.onopen=resolve;socket.onerror=reject;socket.onmessage=async function(event){var message=JSON.parse(event.data);if(!peer)return;if(message.type==='answer'){await peer.setRemoteDescription(message.description);for(var i=0;i<pendingCandidates.length;i++)await peer.addIceCandidate(pendingCandidates[i]).catch(function(){});pendingCandidates=[];}if(message.type==='candidate'&&message.candidate){if(peer.remoteDescription)peer.addIceCandidate(message.candidate).catch(function(){});else pendingCandidates.push(message.candidate);}};socket.onclose=function(){setStatus('Disconnected — press Start to reconnect',false);};});}
-async function start(){try{disconnect();setStatus('Requesting camera permission…',false);stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}},audio:false});preview.srcObject=stream;await preview.play();await connectSocket();peer=new RTCPeerConnection({iceServers:[]});stream.getVideoTracks().forEach(function(track){peer.addTrack(track,stream);});peer.onicecandidate=function(event){if(event.candidate)send({type:'candidate',candidate:event.candidate});};peer.onconnectionstatechange=function(){var state=peer.connectionState;if(state==='connected')setStatus('LIVE TO PC',true);else if(state==='failed'||state==='disconnected')setStatus('Connection lost — press Start',false);};var offer=await peer.createOffer();await peer.setLocalDescription(offer);send({type:'offer',description:peer.localDescription});setStatus('Connecting to LANCAST…',false);}catch(error){setStatus(error&&error.message?error.message:'Camera could not start',false);}}
+async function start(){try{disconnect();setStatus('Requesting camera permission…',false);stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30,max:30}},audio:false});preview.srcObject=stream;await preview.play();await connectSocket();peer=new RTCPeerConnection({iceServers:[]});stream.getVideoTracks().forEach(function(track){peer.addTrack(track,stream);});peer.onicecandidate=function(event){if(event.candidate)send({type:'candidate',candidate:event.candidate});};peer.onconnectionstatechange=function(){var state=peer.connectionState;if(state==='connected'){stopFallback();send({type:'media-connected'});setStatus('LIVE TO PC',true);}else if(state==='failed'||state==='disconnected'){startFallback();}};var offer=await peer.createOffer();await peer.setLocalDescription(offer);send({type:'offer',description:peer.localDescription});setStatus('Connecting to LANCAST…',false);fallbackTimer=setTimeout(startFallback,2500);}catch(error){setStatus(error&&error.message?error.message:'Camera could not start',false);}}
 document.getElementById('start').onclick=start;document.getElementById('flip').onclick=function(){facing=facing==='environment'?'user':'environment';start();};
 window.addEventListener('pagehide',disconnect);
 }());</script></body></html>`
@@ -354,10 +359,24 @@ export async function startPhoneCameraServer(options: PhoneCameraServerOptions):
     senderSocket = webSocket
     options.onState('connected', 'Phone connected. Waiting for its camera…')
     webSocket.on('message', (data, binary) => {
-      if (binary) return
+      if (binary) {
+        const frame = Buffer.isBuffer(data)
+          ? data
+          : Array.isArray(data)
+            ? Buffer.concat(data)
+            : Buffer.from(data as ArrayBuffer)
+        if (frame.length >= 32 && frame.length <= 2_500_000
+          && frame[0] === 0xff && frame[1] === 0xd8 && frame[2] === 0xff) {
+          options.onFrame(frame)
+          options.onState('streaming', 'Phone camera is live over the secure local fallback.')
+        }
+        return
+      }
       try {
         const message = JSON.parse(data.toString())
-        if (message?.type === 'offer') options.onState('streaming', 'Phone camera is live.')
+        if (message?.type === 'offer') options.onState('connected', 'Phone connected. Negotiating the fastest media path…')
+        if (message?.type === 'media-connected') options.onState('streaming', 'Phone camera is live over WebRTC.')
+        if (message?.type === 'fallback-started') options.onState('connected', 'WebRTC was blocked. Starting the secure local fallback…')
         options.onSignal(message)
       } catch {
         // Ignore malformed signaling data from the local page.

@@ -74,6 +74,11 @@ const api = {
     ipcRenderer.on('phone-camera:signal', h)
     return () => ipcRenderer.removeListener('phone-camera:signal', h)
   },
+  onPhoneCameraFrame: (cb: (frame: Uint8Array) => void) => {
+    const h = (_e: unknown, frame: Uint8Array) => cb(frame)
+    ipcRenderer.on('phone-camera:jpeg', h)
+    return () => ipcRenderer.removeListener('phone-camera:jpeg', h)
+  },
   onPhoneCameraState: (cb: (state: unknown) => void) => {
     const h = (_e: unknown, state: unknown) => cb(state)
     ipcRenderer.on('phone-camera:state', h)

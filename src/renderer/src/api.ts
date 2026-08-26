@@ -114,6 +114,7 @@ export interface LancastApi {
   onScanProgress(cb: (p: { done: number; total: number }) => void): () => void
   onUpdateStatus(cb: (state: UpdateState) => void): () => void
   onPhoneCameraSignal(cb: (message: unknown) => void): () => void
+  onPhoneCameraFrame(cb: (frame: Uint8Array) => void): () => void
   onPhoneCameraState(cb: (state: { state: PhoneCameraState; message: string }) => void): () => void
 }
 

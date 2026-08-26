@@ -247,6 +247,10 @@ ipcMain.handle('phone-camera:start', async () => {
       protectSecret: protectPhoneCameraSecret,
       unprotectSecret: unprotectPhoneCameraSecret,
       onSignal: (message) => win?.webContents.send('phone-camera:signal', message),
+      onFrame: (frame) => {
+        queuePhoneFrame(frame)
+        win?.webContents.send('phone-camera:jpeg', frame)
+      },
       onState: (state, message) => {
         phoneCameraState = state
         win?.webContents.send('phone-camera:state', { state, message })

@@ -66,6 +66,7 @@ export default function App() {
   const [phoneState, setPhoneState] = useState<PhoneCameraState>('stopped')
   const [phoneMessage, setPhoneMessage] = useState('Camera receiver is stopped.')
   const [phonePreviewReady, setPhonePreviewReady] = useState(false)
+  const [phoneFallbackActive, setPhoneFallbackActive] = useState(false)
   const [virtualCamera, setVirtualCamera] = useState<VirtualCameraStatus | null>(null)
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null)
   const [netFilter, setNetFilter] = useState('')
@@ -74,6 +75,7 @@ export default function App() {
   const [update, setUpdate] = useState<UpdateState | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
   const phoneVideoRef = useRef<HTMLVideoElement>(null)
+  const phoneFallbackImageRef = useRef<HTMLImageElement>(null)
   const phoneCanvasRef = useRef<HTMLCanvasElement>(null)
   const phonePeerRef = useRef<RTCPeerConnection | null>(null)
   const phoneCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
@@ -88,7 +90,25 @@ export default function App() {
     phonePeerRef.current = null
     phoneCandidateQueueRef.current = []
     setPhonePreviewReady(false)
+    setPhoneFallbackActive(false)
     if (phoneVideoRef.current) phoneVideoRef.current.srcObject = null
+    if (phoneFallbackImageRef.current?.src) {
+      URL.revokeObjectURL(phoneFallbackImageRef.current.src)
+      phoneFallbackImageRef.current.removeAttribute('src')
+    }
+  }, [])
+
+  const handlePhoneFallbackFrame = useCallback((frame: Uint8Array) => {
+    const image = phoneFallbackImageRef.current
+    if (!image || frame.byteLength < 32) return
+    const url = URL.createObjectURL(new Blob([Uint8Array.from(frame).buffer], { type: 'image/jpeg' }))
+    const previous = image.src
+    image.onload = () => {
+      if (previous.startsWith('blob:')) URL.revokeObjectURL(previous)
+      setPhoneFallbackActive(true)
+      setPhonePreviewReady(true)
+    }
+    image.src = url
   }, [])
 
   const handlePhoneSignal = useCallback(async (raw: unknown) => {
@@ -103,6 +123,7 @@ export default function App() {
       }
       peer.ontrack = (event) => {
         const stream = event.streams[0] ?? new MediaStream([event.track])
+        setPhoneFallbackActive(false)
         if (phoneVideoRef.current) {
           phoneVideoRef.current.srcObject = stream
           void phoneVideoRef.current.play().then(() => setPhonePreviewReady(true)).catch(() => undefined)
@@ -151,12 +172,13 @@ export default function App() {
     const offScan = api.onScanProgress(setScanProgress)
     const offUpdate = api.onUpdateStatus(setUpdate)
     const offPhoneSignal = api.onPhoneCameraSignal((message) => { void handlePhoneSignal(message) })
+    const offPhoneFrame = api.onPhoneCameraFrame(handlePhoneFallbackFrame)
     const offPhoneState = api.onPhoneCameraState(({ state, message }) => {
       setPhoneState(state); setPhoneMessage(message)
     })
     api.phoneCameraStatus().then((camera) => setVirtualCamera(camera.virtualCamera)).catch(() => undefined)
-    return () => { offLog(); offEnd(); offScan(); offUpdate(); offPhoneSignal(); offPhoneState() }
-  }, [addLog, handlePhoneSignal])
+    return () => { offLog(); offEnd(); offScan(); offUpdate(); offPhoneSignal(); offPhoneFrame(); offPhoneState() }
+  }, [addLog, handlePhoneSignal, handlePhoneFallbackFrame])
 
   useEffect(() => {
     if (!phoneCameraOpen) return
@@ -892,6 +914,8 @@ export default function App() {
                         <section className="phone-camera-preview-panel">
                           <div className="phone-preview-bezel">
                             <video ref={phoneVideoRef} autoPlay muted playsInline />
+                            <img ref={phoneFallbackImageRef} className={phoneFallbackActive ? 'is-active' : ''} alt="Live phone camera fallback preview" />
+                            {phoneFallbackActive && <em>SECURE FALLBACK</em>}
                             {!phonePreviewReady && <span>PHONE PREVIEW</span>}
                           </div>
                           <canvas ref={phoneCanvasRef} hidden />
@@ -923,7 +947,7 @@ export default function App() {
                       </div>
 
                       <p className="phone-camera-privacy-note">
-                        No app, cloud, account, or internet connection is used. HTTPS and WebRTC stay between this phone and PC on the local network. The one-time certificate is removable from the phone’s profile settings.
+                        No app, cloud, account, or internet connection is used. HTTPS, WebSocket fallback, and WebRTC stay between this phone and PC on the local network. The one-time certificate is removable from the phone’s profile settings.
                       </p>
                     </Modal.Body>
                     <Modal.Footer className="device-modal-footer">

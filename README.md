@@ -20,7 +20,7 @@ Your PC captures the screen, encodes it on the GPU, and sends it across your LAN
 - **LG webOS browser support** — Play, Retry, and Fullscreen controls work with the TV remote
 - **Extra monitor assistant** — open Windows Wireless Display, approve the TV, and switch the connection to Extend mode from a guided popup
 - **One-click updates** — a button appears when a newer public GitHub release is available
-- **Phone → PC camera** — scan a local QR code in iPhone or Android Chrome/Safari, preview it in LANCAST, and expose it as “LANCAST Phone Camera” to Windows camera apps
+- **Phone → PC camera** — scan a local QR code in iPhone or Android Chrome/Safari, preview it in LANCAST, and expose it as “LANCAST Phone Camera” to Windows camera apps; an encrypted fallback automatically handles networks that block WebRTC media
 
 ## Install
 
@@ -72,7 +72,9 @@ The picture should appear on the TV within a few seconds.
    certificate, and enable trust when the phone asks. This is needed because
    iOS and Android browsers allow camera access only from a secure page.
 3. Scan QR **2** and press **Start Camera** on the phone page. Chrome and Safari
-   are both supported; the video goes directly to the PC over WebRTC.
+   are both supported. LANCAST first tries low-latency WebRTC; if its UDP media
+   path is blocked, it automatically switches to encrypted JPEG frames over the
+   already-connected local WebSocket. No router settings are required.
 4. On Windows 11, press **Install camera component** once and approve the UAC
    prompt. Then press **Start virtual camera**.
 5. In Teams, Zoom, OBS, Discord, or Windows Camera, choose
