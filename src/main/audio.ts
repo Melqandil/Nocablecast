@@ -1,5 +1,34 @@
 import { runFfmpeg } from './ffmpeg.js'
 
+export interface AudioCaptureCheck {
+  ok: boolean
+  detail: string
+}
+
+/**
+ * Opens the selected DirectShow input briefly before a live stream starts.
+ * Windows classifies every DirectShow capture source (including Stereo Mix
+ * and virtual loopback cables) under its microphone privacy switch. Device
+ * enumeration can still succeed when actual capture is blocked, so opening
+ * it is the only reliable preflight.
+ */
+export async function testAudioCapture(ffmpeg: string, device: string): Promise<AudioCaptureCheck> {
+  const result = await runFfmpeg(ffmpeg, [
+    '-hide_banner', '-loglevel', 'error',
+    '-f', 'dshow', '-audio_buffer_size', '50', '-i', `audio=${device}`,
+    '-t', '0.35', '-map', '0:a:0', '-f', 'null', '-',
+  ], 8000)
+
+  const detail = result.stderr
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-2)
+    .join(' ')
+
+  return { ok: result.ok, detail }
+}
+
 /**
  * Lists DirectShow audio devices ffmpeg can see.
  *

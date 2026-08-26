@@ -47,6 +47,13 @@ const PRESETS = [
   { label: '720p60', width: '1280', fps: '60', bitrate: '4000' },
 ]
 
+/**
+ * How long to wait for a decoded frame after WebRTC negotiates before giving
+ * up on it and going back to the JPEG fallback. A working local path delivers
+ * its first frame in well under a second.
+ */
+const PHONE_VIDEO_TIMEOUT_MS = 3000
+
 export default function App() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [displays, setDisplays] = useState<DisplayInfo[]>([])
@@ -80,12 +87,86 @@ export default function App() {
   const phonePeerRef = useRef<RTCPeerConnection | null>(null)
   const phoneCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
   const phoneFrameBusyRef = useRef(false)
+  const phoneFrameWatchRef = useRef<{ cancel: () => void } | null>(null)
+  const phoneVideoConfirmedRef = useRef(false)
 
   const addLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-600), line])
   }, [])
 
+  const cancelPhoneFrameWatch = useCallback(() => {
+    phoneFrameWatchRef.current?.cancel()
+    phoneFrameWatchRef.current = null
+  }, [])
+
+  /**
+   * Waits for the phone's WebRTC video to actually produce a frame.
+   *
+   * A peer connection reporting 'connected' only means a candidate pair
+   * passed its connectivity checks -- it does not mean media is flowing, and
+   * on networks where the negotiated path carries no RTP it never will. So
+   * the JPEG fallback is torn down here, on evidence of a decoded frame,
+   * rather than on the promise of one. If nothing arrives the phone is asked
+   * to resume sending JPEGs instead of leaving a black preview behind.
+   */
+  const watchForPhoneVideo = useCallback((video: HTMLVideoElement) => {
+    cancelPhoneFrameWatch()
+
+    const media = video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (cb: () => void) => number
+      cancelVideoFrameCallback?: (handle: number) => void
+    }
+    let settled = false
+    let frameHandle = 0
+    let pollTimer = 0
+    let watchdog = 0
+
+    const cleanup = () => {
+      if (frameHandle && media.cancelVideoFrameCallback) media.cancelVideoFrameCallback(frameHandle)
+      if (pollTimer) window.clearInterval(pollTimer)
+      if (watchdog) window.clearTimeout(watchdog)
+      frameHandle = 0
+      pollTimer = 0
+      watchdog = 0
+    }
+
+    const confirm = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      phoneFrameWatchRef.current = null
+      phoneVideoConfirmedRef.current = true
+      setPhoneFallbackActive(false)
+      setPhonePreviewReady(true)
+      setPhoneState('streaming')
+      setPhoneMessage('Phone camera is live over WebRTC.')
+      api.sendPhoneCameraSignal({ type: 'media-confirmed' })
+    }
+
+    if (media.requestVideoFrameCallback) {
+      frameHandle = media.requestVideoFrameCallback(() => confirm())
+    }
+    // Backs up requestVideoFrameCallback, and covers builds without it.
+    pollTimer = window.setInterval(() => {
+      if (video.readyState >= 2 && video.videoWidth > 0) confirm()
+    }, 200)
+
+    watchdog = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      cleanup()
+      phoneFrameWatchRef.current = null
+      phoneVideoConfirmedRef.current = false
+      setPhoneMessage('WebRTC connected but no video arrived — switching back to the secure local fallback.')
+      api.sendPhoneCameraSignal({ type: 'resume-fallback' })
+    }, PHONE_VIDEO_TIMEOUT_MS)
+
+    phoneFrameWatchRef.current = { cancel: () => { settled = true; cleanup() } }
+  }, [cancelPhoneFrameWatch])
+
   const closePhonePeer = useCallback(() => {
+    cancelPhoneFrameWatch()
+    phoneVideoConfirmedRef.current = false
     phonePeerRef.current?.close()
     phonePeerRef.current = null
     phoneCandidateQueueRef.current = []
@@ -96,10 +177,14 @@ export default function App() {
       URL.revokeObjectURL(phoneFallbackImageRef.current.src)
       phoneFallbackImageRef.current.removeAttribute('src')
     }
-  }, [])
+  }, [cancelPhoneFrameWatch])
 
   const handlePhoneFallbackFrame = useCallback((frame: Uint8Array) => {
     const image = phoneFallbackImageRef.current
+    // Once WebRTC video is confirmed the phone stops sending JPEGs, but a
+    // few can still be in flight. Drawing them would leave a frozen still
+    // sitting on top of the live video, so they are dropped.
+    if (phoneVideoConfirmedRef.current) return
     if (!image || frame.byteLength < 32) return
     const url = URL.createObjectURL(new Blob([Uint8Array.from(frame).buffer], { type: 'image/jpeg' }))
     const previous = image.src
@@ -123,17 +208,21 @@ export default function App() {
       }
       peer.ontrack = (event) => {
         const stream = event.streams[0] ?? new MediaStream([event.track])
-        setPhoneFallbackActive(false)
-        if (phoneVideoRef.current) {
-          phoneVideoRef.current.srcObject = stream
-          void phoneVideoRef.current.play().then(() => setPhonePreviewReady(true)).catch(() => undefined)
-        }
+        const video = phoneVideoRef.current
+        if (!video) return
+        // ontrack fires when the remote description is applied, before any
+        // media has arrived -- so the fallback stays visible until
+        // watchForPhoneVideo sees a real frame.
+        video.srcObject = stream
+        void video.play().catch(() => undefined)
+        watchForPhoneVideo(video)
       }
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === 'connected') {
-          setPhoneState('streaming')
-          setPhoneMessage('Phone camera is live on this PC.')
+          setPhoneMessage('Phone connected. Checking that video is really arriving…')
         } else if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
+          cancelPhoneFrameWatch()
+          phoneVideoConfirmedRef.current = false
           setPhoneMessage('Phone connection was lost. Press Start Camera on the phone to reconnect.')
           setPhonePreviewReady(false)
         }
@@ -155,7 +244,7 @@ export default function App() {
       if (peer?.remoteDescription) await peer.addIceCandidate(message.candidate).catch(() => undefined)
       else phoneCandidateQueueRef.current.push(message.candidate)
     }
-  }, [closePhonePeer])
+  }, [closePhonePeer, watchForPhoneVideo, cancelPhoneFrameWatch])
 
   useEffect(() => {
     api.loadSettings().then(setSettings)
@@ -169,6 +258,10 @@ export default function App() {
       setStatus('Idle')
       addLog(`ffmpeg exited (code ${code}).`)
     })
+    const offAudioFallback = api.onAudioFallback(() => {
+      setStreaming(true)
+      setStatus('Streaming — video only · audio unavailable')
+    })
     const offScan = api.onScanProgress(setScanProgress)
     const offUpdate = api.onUpdateStatus(setUpdate)
     const offPhoneSignal = api.onPhoneCameraSignal((message) => { void handlePhoneSignal(message) })
@@ -177,7 +270,7 @@ export default function App() {
       setPhoneState(state); setPhoneMessage(message)
     })
     api.phoneCameraStatus().then((camera) => setVirtualCamera(camera.virtualCamera)).catch(() => undefined)
-    return () => { offLog(); offEnd(); offScan(); offUpdate(); offPhoneSignal(); offPhoneFrame(); offPhoneState() }
+    return () => { offLog(); offEnd(); offAudioFallback(); offScan(); offUpdate(); offPhoneSignal(); offPhoneFrame(); offPhoneState() }
   }, [addLog, handlePhoneSignal, handlePhoneFallbackFrame])
 
   useEffect(() => {
@@ -343,7 +436,7 @@ export default function App() {
     await api.saveSettings(effectiveSettings)
     setSettings(effectiveSettings)
     setStreaming(true)
-    setStatus(`Streaming — ${res.encoder} · ${res.capture} · ${settings.outputMode.toUpperCase()}`)
+    setStatus(`Streaming — ${res.encoder} · ${res.capture} · ${settings.outputMode.toUpperCase()}${res.audioDisabled ? ' · VIDEO ONLY' : ''}`)
     if (res.tvUrl) addLog(`Open this address in the LG TV web browser: ${res.tvUrl}`)
   }
 
@@ -814,6 +907,11 @@ export default function App() {
                     This captures audio from a <em>device</em>, not from an application, so there is
                     no “just give me this app’s sound” option on its own. A free virtual audio cable
                     plus Windows’ own per-app routing gets you either result.
+                  </p>
+                  <p className="mb-2">
+                    Windows labels every FFmpeg/DirectShow input as <strong>microphone access</strong>,
+                    including Stereo Mix and virtual cables. If that permission is blocked, LANCAST
+                    continues video-only instead of leaving the receiver buffering.
                   </p>
                   <p className="mb-2">
                     <strong>Everything:</strong> install VB-Audio Virtual Cable, set “CABLE Input” as

@@ -55,6 +55,7 @@ window.lancast = {
   installUpdate: async () => ({ ok: true }),
   onLog: noEvent,
   onEnded: noEvent,
+  onAudioFallback: noEvent,
   onScanProgress: noEvent,
   onUpdateStatus: noEvent,
   onPhoneCameraSignal: noEvent,

@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { NO_WINDOW } from './ffmpeg.js'
 
 export type StreamLogFn = (line: string) => void
-export type StreamExitFn = (code: number | null) => void
+/** `unexpected` is false when LANCAST itself requested the stop. */
+export type StreamExitFn = (code: number | null, unexpected: boolean) => void
 
 let current: ChildProcess | null = null
 
@@ -27,8 +28,9 @@ export function startStream(cmd: string[], onLog: StreamLogFn, onExit: StreamExi
 
   proc.on('error', (err) => onLog(`Failed to start ffmpeg: ${err.message}`))
   proc.on('close', (code) => {
-    if (current === proc) current = null
-    onExit(code)
+    const unexpected = current === proc
+    if (unexpected) current = null
+    onExit(code, unexpected)
   })
 }
 

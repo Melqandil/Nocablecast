@@ -34,7 +34,11 @@ does not need Python, Node.js, or a separate ffmpeg installation. The TV (or
 other receiver) only needs VLC and must be on the same local network. An LG TV
 can use its built-in web browser instead. Sound is optional; sending Windows
 system audio requires a loopback device such as
-[VB-Audio Virtual Cable](https://vb-audio.com/Cable/).
+[VB-Audio Virtual Cable](https://vb-audio.com/Cable/). Windows groups
+DirectShow capture devices—including Stereo Mix and virtual cables—under its
+**microphone access** privacy setting. LANCAST checks the selected input before
+streaming and continues video-only if Windows blocks it, so disabling audio
+access cannot leave the receiver buffering.
 
 The phone-camera receiver works in Chrome or Safari with no phone app and no
 external hosting. Its optional system virtual camera uses the built-in Windows
@@ -73,8 +77,9 @@ The picture should appear on the TV within a few seconds.
    iOS and Android browsers allow camera access only from a secure page.
 3. Scan QR **2** and press **Start Camera** on the phone page. Chrome and Safari
    are both supported. LANCAST first tries low-latency WebRTC; if its UDP media
-   path is blocked, it automatically switches to encrypted JPEG frames over the
-   already-connected local WebSocket. No router settings are required.
+   path connects without delivering a decoded frame, it automatically switches
+   to encrypted JPEG frames over the already-connected local WebSocket. No
+   router settings are required.
 4. On Windows 11, press **Install camera component** once and approve the UAC
    prompt. Then press **Start virtual camera**.
 5. In Teams, Zoom, OBS, Discord, or Windows Camera, choose
@@ -116,6 +121,11 @@ sound as well, follow **To send just one app** in the Sound section below.
 ## Sound
 
 Windows has no single "system audio" input, so sound needs one free extra piece: [VB-Audio Virtual Cable](https://vb-audio.com/Cable/). Install it, then:
+
+Windows calls access to all FFmpeg DirectShow inputs “microphone access,” even
+when the source is Stereo Mix or a virtual cable rather than a physical
+microphone. If that privacy permission is off or is revoked while streaming,
+LANCAST keeps the picture running and falls back to video-only.
 
 **To send everything you hear:** set `CABLE Input` as your Windows output device (Settings → Sound → Output), and turn on *Listen to this device* on it in the Recording tab so you still hear things yourself. In LANCAST, tick **Include audio** and choose `CABLE Output`.
 

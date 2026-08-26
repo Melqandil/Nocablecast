@@ -96,6 +96,7 @@ export interface LancastApi {
     tvUrl?: string
     playlistUrl?: string
     directUrl?: string
+    audioDisabled?: boolean
   }>
   stopStream(): Promise<boolean>
   streamStatus(): Promise<boolean>
@@ -111,6 +112,7 @@ export interface LancastApi {
   installUpdate(): Promise<{ ok: boolean; error?: string }>
   onLog(cb: (line: string) => void): () => void
   onEnded(cb: (code: number | null) => void): () => void
+  onAudioFallback(cb: (message: string) => void): () => void
   onScanProgress(cb: (p: { done: number; total: number }) => void): () => void
   onUpdateStatus(cb: (state: UpdateState) => void): () => void
   onPhoneCameraSignal(cb: (message: unknown) => void): () => void

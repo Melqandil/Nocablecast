@@ -59,6 +59,11 @@ const api = {
     ipcRenderer.on('stream:ended', h)
     return () => ipcRenderer.removeListener('stream:ended', h)
   },
+  onAudioFallback: (cb: (message: string) => void) => {
+    const h = (_e: unknown, message: string) => cb(message)
+    ipcRenderer.on('stream:audio-fallback', h)
+    return () => ipcRenderer.removeListener('stream:audio-fallback', h)
+  },
   onScanProgress: (cb: (p: { done: number; total: number }) => void) => {
     const h = (_e: unknown, p: { done: number; total: number }) => cb(p)
     ipcRenderer.on('network:progress', h)

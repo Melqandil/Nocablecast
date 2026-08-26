@@ -11,7 +11,7 @@ import { resolveFfmpeg, probeFfmpeg } from './ffmpeg.js'
 import { detectEncoder, testDdagrab } from './encoders.js'
 import { enumerateDisplays } from './displays.js'
 import { enumerateWindows, windowHandleFromSourceId } from './windows.js'
-import { listAudioDevices } from './audio.js'
+import { listAudioDevices, testAudioCapture } from './audio.js'
 import { ssdpDiscover, getLocalIp } from './discovery.js'
 import { scanNetwork } from './network.js'
 import { loadSettings, saveSettings, DEFAULTS, type Settings } from './config.js'
@@ -333,7 +333,8 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     return { ok: false, error: 'ffmpeg not found or not runnable.' }
   }
 
-  const audioDevice = settings.includeAudio ? settings.audioDevice.trim() : ''
+  let audioDevice = settings.includeAudio ? settings.audioDevice.trim() : ''
+  let audioDisabled = false
   if (settings.includeAudio && !audioDevice) {
     return { ok: false, error: "Audio is enabled but no device is selected. Pick one, or turn audio off." }
   }
@@ -341,6 +342,18 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
   const audioDelayMs = parseInt(settings.audioDelayMs || '0', 10)
   if (!Number.isFinite(audioDelayMs)) {
     return { ok: false, error: 'Sync must be a whole number of milliseconds (it may be negative).' }
+  }
+
+  if (audioDevice) {
+    log(`Checking audio access: ${audioDevice}`)
+    const audioCheck = await testAudioCapture(ffmpeg, audioDevice)
+    if (!audioCheck.ok) {
+      audioDisabled = true
+      const detail = audioCheck.detail ? ` (${audioCheck.detail})` : ''
+      log(`Warning: Windows blocked or could not open the selected audio input${detail}.`)
+      log('Continuing with video only so the TV does not remain buffering. Windows calls DirectShow capture “microphone access,” even for Stereo Mix and virtual audio cables.')
+      audioDevice = ''
+    }
   }
 
   const [encoder, encoderArgs] = await detectEncoder(ffmpeg, settings.encoderPref, log)
@@ -432,7 +445,7 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     }
   }
 
-  const cmd = buildCommand({
+  const commandOptions = {
     ffmpeg, encoder, encoderArgs,
     tvIp: settings.tvIp.trim(), tvPort: settings.tvPort.trim(),
     bitrateKbps: settings.bitrateKbps.trim(), scaleWidth: settings.scaleWidth.trim(),
@@ -442,18 +455,37 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     outputMode, latencyMode: settings.latencyMode,
     hlsPlaylistPath: hlsRoot ? join(hlsRoot, 'live.m3u8') : undefined,
     hlsSegmentPattern: hlsRoot ? join(hlsRoot, 'segment_%06d.ts') : undefined,
-  })
+  } as const
+
+  const cmd = buildCommand(commandOptions)
+  const videoOnlyCmd = audioDevice
+    ? buildCommand({ ...commandOptions, audioDevice: null, audioDelayMs: 0 })
+    : null
 
   log(`Running: ${cmd.join(' ')}`)
   try {
-    startStream(
-      cmd,
-      log,
-      (code) => {
-        void stopHlsOutput()
-        win?.webContents.send('stream:ended', code)
-      },
-    )
+    let audioRecoveryUsed = false
+    const finish = (code: number | null) => {
+      void stopHlsOutput()
+      win?.webContents.send('stream:ended', code)
+    }
+    const onExit = (code: number | null, unexpected: boolean) => {
+      if (unexpected && videoOnlyCmd && !audioRecoveryUsed) {
+        audioRecoveryUsed = true
+        const message = 'Audio capture stopped unexpectedly. LANCAST is restarting the stream as video-only so the receiver can keep playing.'
+        log(message)
+        win?.webContents.send('stream:audio-fallback', message)
+        try {
+          startStream(videoOnlyCmd, log, (fallbackCode) => finish(fallbackCode))
+        } catch (error) {
+          log(`Video-only restart failed: ${error instanceof Error ? error.message : String(error)}`)
+          finish(code)
+        }
+        return
+      }
+      finish(code)
+    }
+    startStream(cmd, log, onExit)
   } catch (error) {
     await stopHlsOutput()
     const detail = error instanceof Error ? error.message : String(error)
@@ -466,5 +498,6 @@ ipcMain.handle('stream:start', async (_e, payload: StartPayload) => {
     tvUrl: hlsInfo?.tvUrl,
     playlistUrl: hlsInfo?.playlistUrl,
     directUrl: hlsInfo?.directUrl,
+    audioDisabled,
   }
 })
