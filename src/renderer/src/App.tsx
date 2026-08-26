@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Modal } from '@heroui/react'
 import {
   api, ALL_MONITORS, type Settings, type DisplayInfo, type WindowInfo,
-  type NetDevice, type FoundDevice, type UpdateState,
+  type NetDevice, type FoundDevice, type UpdateState, type PhoneCameraInfo,
+  type PhoneCameraState, type VirtualCameraStatus,
 } from './api'
 import { Panel, Button, Field, Input, Toggle, Tag } from './components/brutal'
 import { BrutalSelect, HelpModal, type Option } from './components/hero'
@@ -60,16 +61,80 @@ export default function App() {
   const [netDevices, setNetDevices] = useState<NetDevice[] | null>(null)
   const [netListOpen, setNetListOpen] = useState(false)
   const [extraDisplayOpen, setExtraDisplayOpen] = useState(false)
+  const [phoneCameraOpen, setPhoneCameraOpen] = useState(false)
+  const [phoneInfo, setPhoneInfo] = useState<PhoneCameraInfo | null>(null)
+  const [phoneState, setPhoneState] = useState<PhoneCameraState>('stopped')
+  const [phoneMessage, setPhoneMessage] = useState('Camera receiver is stopped.')
+  const [phonePreviewReady, setPhonePreviewReady] = useState(false)
+  const [virtualCamera, setVirtualCamera] = useState<VirtualCameraStatus | null>(null)
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number } | null>(null)
   const [netFilter, setNetFilter] = useState('')
   const [ffmpegInfo, setFfmpegInfo] = useState<{ ok: boolean; version: string; path: string } | null>(null)
   const [localIp, setLocalIp] = useState<string | null>(null)
   const [update, setUpdate] = useState<UpdateState | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
+  const phoneVideoRef = useRef<HTMLVideoElement>(null)
+  const phoneCanvasRef = useRef<HTMLCanvasElement>(null)
+  const phonePeerRef = useRef<RTCPeerConnection | null>(null)
+  const phoneCandidateQueueRef = useRef<RTCIceCandidateInit[]>([])
+  const phoneFrameBusyRef = useRef(false)
 
   const addLog = useCallback((line: string) => {
     setLog((prev) => [...prev.slice(-600), line])
   }, [])
+
+  const closePhonePeer = useCallback(() => {
+    phonePeerRef.current?.close()
+    phonePeerRef.current = null
+    phoneCandidateQueueRef.current = []
+    setPhonePreviewReady(false)
+    if (phoneVideoRef.current) phoneVideoRef.current.srcObject = null
+  }, [])
+
+  const handlePhoneSignal = useCallback(async (raw: unknown) => {
+    if (!raw || typeof raw !== 'object') return
+    const message = raw as { type?: string; description?: RTCSessionDescriptionInit; candidate?: RTCIceCandidateInit }
+    if (message.type === 'offer' && message.description) {
+      closePhonePeer()
+      const peer = new RTCPeerConnection({ iceServers: [] })
+      phonePeerRef.current = peer
+      peer.onicecandidate = (event) => {
+        if (event.candidate) api.sendPhoneCameraSignal({ type: 'candidate', candidate: event.candidate.toJSON() })
+      }
+      peer.ontrack = (event) => {
+        const stream = event.streams[0] ?? new MediaStream([event.track])
+        if (phoneVideoRef.current) {
+          phoneVideoRef.current.srcObject = stream
+          void phoneVideoRef.current.play().then(() => setPhonePreviewReady(true)).catch(() => undefined)
+        }
+      }
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === 'connected') {
+          setPhoneState('streaming')
+          setPhoneMessage('Phone camera is live on this PC.')
+        } else if (peer.connectionState === 'failed' || peer.connectionState === 'disconnected') {
+          setPhoneMessage('Phone connection was lost. Press Start Camera on the phone to reconnect.')
+          setPhonePreviewReady(false)
+        }
+      }
+      try {
+        await peer.setRemoteDescription(message.description)
+        for (const candidate of phoneCandidateQueueRef.current) await peer.addIceCandidate(candidate)
+        phoneCandidateQueueRef.current = []
+        const answer = await peer.createAnswer()
+        await peer.setLocalDescription(answer)
+        api.sendPhoneCameraSignal({ type: 'answer', description: peer.localDescription })
+      } catch (error) {
+        setPhoneMessage(error instanceof Error ? error.message : 'Could not answer the phone camera.')
+      }
+      return
+    }
+    if (message.type === 'candidate' && message.candidate) {
+      const peer = phonePeerRef.current
+      if (peer?.remoteDescription) await peer.addIceCandidate(message.candidate).catch(() => undefined)
+      else phoneCandidateQueueRef.current.push(message.candidate)
+    }
+  }, [closePhonePeer])
 
   useEffect(() => {
     api.loadSettings().then(setSettings)
@@ -85,8 +150,72 @@ export default function App() {
     })
     const offScan = api.onScanProgress(setScanProgress)
     const offUpdate = api.onUpdateStatus(setUpdate)
-    return () => { offLog(); offEnd(); offScan(); offUpdate() }
-  }, [addLog])
+    const offPhoneSignal = api.onPhoneCameraSignal((message) => { void handlePhoneSignal(message) })
+    const offPhoneState = api.onPhoneCameraState(({ state, message }) => {
+      setPhoneState(state); setPhoneMessage(message)
+    })
+    api.phoneCameraStatus().then((camera) => setVirtualCamera(camera.virtualCamera)).catch(() => undefined)
+    return () => { offLog(); offEnd(); offScan(); offUpdate(); offPhoneSignal(); offPhoneState() }
+  }, [addLog, handlePhoneSignal])
+
+  useEffect(() => {
+    if (!phoneCameraOpen) return
+    let cancelled = false
+    setPhoneMessage('Starting the secure local camera receiver…')
+    api.startPhoneCamera().then((result) => {
+      if (cancelled) return
+      if (result.ok && result.info) {
+        setPhoneInfo(result.info)
+        setPhoneState('ready')
+        setPhoneMessage('Ready — use setup once, then scan the camera QR code.')
+      } else {
+        setPhoneState('stopped')
+        setPhoneMessage(result.error ?? 'The phone-camera receiver could not start.')
+      }
+      return api.phoneCameraStatus()
+    }).then((camera) => {
+      if (!cancelled && camera) setVirtualCamera(camera.virtualCamera)
+    }).catch((error) => {
+      if (!cancelled) setPhoneMessage(error instanceof Error ? error.message : String(error))
+    })
+    return () => {
+      cancelled = true
+      closePhonePeer()
+      setPhoneInfo(null)
+      setPhoneState('stopped')
+      void api.stopPhoneCamera()
+    }
+  }, [phoneCameraOpen, closePhonePeer])
+
+  useEffect(() => {
+    if (!phoneCameraOpen || !phonePreviewReady) return
+    const timer = window.setInterval(() => {
+      const video = phoneVideoRef.current
+      const canvas = phoneCanvasRef.current
+      if (!video || !canvas || video.readyState < 2 || phoneFrameBusyRef.current) return
+      const width = 1280
+      const height = 720
+      canvas.width = width
+      canvas.height = height
+      const context = canvas.getContext('2d', { alpha: false })
+      if (!context) return
+      const sourceWidth = video.videoWidth || width
+      const sourceHeight = video.videoHeight || height
+      const scale = Math.min(width / sourceWidth, height / sourceHeight)
+      const drawWidth = Math.round(sourceWidth * scale)
+      const drawHeight = Math.round(sourceHeight * scale)
+      context.fillStyle = '#000'
+      context.fillRect(0, 0, width, height)
+      context.drawImage(video, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight)
+      phoneFrameBusyRef.current = true
+      canvas.toBlob((blob) => {
+        if (!blob) { phoneFrameBusyRef.current = false; return }
+        blob.arrayBuffer().then((buffer) => api.sendPhoneCameraFrame(new Uint8Array(buffer)))
+          .finally(() => { phoneFrameBusyRef.current = false })
+      }, 'image/jpeg', 0.82)
+    }, 50)
+    return () => window.clearInterval(timer)
+  }, [phoneCameraOpen, phonePreviewReady])
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
@@ -220,6 +349,37 @@ export default function App() {
     addLog('Windows switched connected displays to Extend mode.')
     setExtraDisplayOpen(false)
     window.setTimeout(() => { void api.listDisplays().then(setDisplays) }, 1500)
+  }
+
+  const installPhoneVirtualCamera = async () => {
+    setPhoneMessage('Waiting for the Windows administrator prompt…')
+    const result = await api.installVirtualCamera()
+    if (!result.ok) {
+      setPhoneMessage(result.error ?? 'The virtual camera could not be installed.')
+      return
+    }
+    setVirtualCamera(result.virtualCamera ?? null)
+    setPhoneMessage('Virtual camera installed. Restarting the local phone receiver…')
+    closePhonePeer()
+    await api.stopPhoneCamera()
+    const restarted = await api.startPhoneCamera()
+    if (restarted.ok && restarted.info) {
+      setPhoneInfo(restarted.info)
+      setPhoneState('ready')
+      setPhoneMessage('Installed — scan the camera QR code, then start the virtual camera.')
+    } else {
+      setPhoneMessage(restarted.error ?? 'Installed, but the phone receiver could not restart.')
+    }
+  }
+
+  const runPhoneVirtualCamera = async () => {
+    const result = await api.startVirtualCamera()
+    if (!result.ok) {
+      setPhoneMessage(result.error ?? 'The Windows virtual camera could not start.')
+      return
+    }
+    setVirtualCamera(result.virtualCamera ?? null)
+    setPhoneMessage('LANCAST Phone Camera is ready in Teams, Zoom, OBS, and other camera apps.')
   }
 
   const installUpdate = async () => {
@@ -680,7 +840,100 @@ export default function App() {
               >
                 ▣ Add as extra monitor
               </Button>
+              <Button
+                size="lg"
+                className="phone-camera-launch"
+                onClick={() => setPhoneCameraOpen(true)}
+              >
+                ◉ Use phone as camera
+              </Button>
             </div>
+
+            <Modal isOpen={phoneCameraOpen} onOpenChange={setPhoneCameraOpen}>
+              <Modal.Backdrop className="skeuo-modal-backdrop" isDismissable>
+                <Modal.Container placement="center">
+                  <Modal.Dialog className="skeuo-modal skeuo-phone-camera-modal">
+                    <Modal.Header className="skeuo-modal-header">
+                      <Modal.Heading className="skeuo-modal-title">
+                        Phone camera · local network
+                      </Modal.Heading>
+                      <Modal.CloseTrigger className="skeuo-modal-close" />
+                    </Modal.Header>
+                    <Modal.Body className="skeuo-modal-body phone-camera-modal-body">
+                      <div className="phone-camera-status-rack">
+                        <span className={`phone-camera-led is-${phoneState}`} aria-hidden />
+                        <div>
+                          <strong>{phoneState === 'streaming' ? 'CAMERA LIVE' : phoneState.toUpperCase()}</strong>
+                          <span>{phoneMessage}</span>
+                        </div>
+                        {phoneInfo && <code>{phoneInfo.localIp}</code>}
+                      </div>
+
+                      <div className="phone-camera-grid">
+                        <section className="phone-camera-pairing">
+                          <div className="phone-qr-card">
+                            <span className="phone-step-number">1</span>
+                            <div><strong>First time on this phone</strong><small>Scan once to install and trust this PC’s private certificate.</small></div>
+                            {phoneInfo
+                              ? <img src={phoneInfo.setupQr} alt="QR code for the LANCAST certificate setup page" />
+                              : <div className="phone-qr-placeholder">STARTING…</div>}
+                            {phoneInfo && <Button size="sm" onClick={() => api.copy(phoneInfo.setupUrl)}>COPY SETUP ADDRESS</Button>}
+                          </div>
+                          <div className="phone-qr-card is-camera">
+                            <span className="phone-step-number">2</span>
+                            <div><strong>Send the phone camera</strong><small>Scan this each session, then press Start Camera in Chrome or Safari.</small></div>
+                            {phoneInfo
+                              ? <img src={phoneInfo.phoneQr} alt="QR code for the secure LANCAST phone camera page" />
+                              : <div className="phone-qr-placeholder">WAITING…</div>}
+                            {phoneInfo && <Button size="sm" onClick={() => api.copy(phoneInfo.phoneUrl)}>COPY CAMERA ADDRESS</Button>}
+                          </div>
+                        </section>
+
+                        <section className="phone-camera-preview-panel">
+                          <div className="phone-preview-bezel">
+                            <video ref={phoneVideoRef} autoPlay muted playsInline />
+                            {!phonePreviewReady && <span>PHONE PREVIEW</span>}
+                          </div>
+                          <canvas ref={phoneCanvasRef} hidden />
+                          <div className="virtual-camera-console">
+                            <strong>WINDOWS VIRTUAL CAMERA</strong>
+                            <p>{virtualCamera?.message ?? 'Checking the Windows camera component…'}</p>
+                            {!virtualCamera?.installed ? (
+                              <Button
+                                size="lg"
+                                variant="primary"
+                                disabled={!virtualCamera?.supported || !!busy}
+                                onClick={() => withBusy('virtual-camera-install', installPhoneVirtualCamera)}
+                              >
+                                {busy === 'virtual-camera-install' ? 'INSTALLING…' : 'INSTALL CAMERA COMPONENT'}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="lg"
+                                variant="primary"
+                                disabled={!phonePreviewReady || virtualCamera.running || !!busy}
+                                onClick={() => withBusy('virtual-camera-start', runPhoneVirtualCamera)}
+                              >
+                                {virtualCamera.running ? 'CAMERA IS AVAILABLE' : 'START VIRTUAL CAMERA'}
+                              </Button>
+                            )}
+                            <small>Video only in this version. Select “LANCAST Phone Camera” inside Teams, Zoom, OBS, Discord, or the Windows Camera app.</small>
+                          </div>
+                        </section>
+                      </div>
+
+                      <p className="phone-camera-privacy-note">
+                        No app, cloud, account, or internet connection is used. HTTPS and WebRTC stay between this phone and PC on the local network. The one-time certificate is removable from the phone’s profile settings.
+                      </p>
+                    </Modal.Body>
+                    <Modal.Footer className="device-modal-footer">
+                      <span>Keep LANCAST and the phone page open while using the camera.</span>
+                      <Modal.CloseTrigger className="skeuo-button skeuo-button-md">STOP &amp; CLOSE</Modal.CloseTrigger>
+                    </Modal.Footer>
+                  </Modal.Dialog>
+                </Modal.Container>
+              </Modal.Backdrop>
+            </Modal>
 
             <Modal isOpen={extraDisplayOpen} onOpenChange={setExtraDisplayOpen}>
               <Modal.Backdrop className="skeuo-modal-backdrop" isDismissable>

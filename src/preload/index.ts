@@ -37,6 +37,15 @@ const api = {
   stopStream: () => ipcRenderer.invoke('stream:stop'),
   streamStatus: () => ipcRenderer.invoke('stream:status'),
 
+  startPhoneCamera: () => ipcRenderer.invoke('phone-camera:start'),
+  stopPhoneCamera: () => ipcRenderer.invoke('phone-camera:stop'),
+  phoneCameraStatus: () => ipcRenderer.invoke('phone-camera:status'),
+  sendPhoneCameraSignal: (message: unknown) => ipcRenderer.send('phone-camera:signal', message),
+  sendPhoneCameraFrame: (frame: Uint8Array) => ipcRenderer.send('phone-camera:frame', frame),
+  installVirtualCamera: () => ipcRenderer.invoke('virtual-camera:install'),
+  startVirtualCamera: () => ipcRenderer.invoke('virtual-camera:start'),
+  stopVirtualCamera: () => ipcRenderer.invoke('virtual-camera:stop'),
+
   updateStatus: () => ipcRenderer.invoke('update:status'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
 
@@ -59,6 +68,16 @@ const api = {
     const h = (_e: unknown, state: UpdateState) => cb(state)
     ipcRenderer.on('update:status', h)
     return () => ipcRenderer.removeListener('update:status', h)
+  },
+  onPhoneCameraSignal: (cb: (message: unknown) => void) => {
+    const h = (_e: unknown, message: unknown) => cb(message)
+    ipcRenderer.on('phone-camera:signal', h)
+    return () => ipcRenderer.removeListener('phone-camera:signal', h)
+  },
+  onPhoneCameraState: (cb: (state: unknown) => void) => {
+    const h = (_e: unknown, state: unknown) => cb(state)
+    ipcRenderer.on('phone-camera:state', h)
+    return () => ipcRenderer.removeListener('phone-camera:state', h)
   },
 }
 

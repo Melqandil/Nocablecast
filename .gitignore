@@ -12,6 +12,9 @@ dist/
 resources/ffmpeg/
 resources/ffmpeg.zip
 resources/_ffmpeg_tmp/
+resources/virtual-camera/*.exe
+resources/virtual-camera/*.dll
+resources/virtual-camera/*.pdb
 
 # Python bytecode from the legacy reference app
 __pycache__/

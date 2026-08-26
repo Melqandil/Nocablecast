@@ -37,6 +37,33 @@ export interface FoundDevice { ip: string; name: string; detail: string }
 export interface NetDevice { ip: string; mac: string }
 export interface SystemActionResult { ok: boolean; error?: string }
 
+export interface PhoneCameraInfo {
+  localIp: string
+  hostname: string
+  setupUrl: string
+  phoneUrl: string
+  setupQr: string
+  phoneQr: string
+  certificateName: string
+  framePath: string
+}
+
+export type PhoneCameraState = 'stopped' | 'ready' | 'connected' | 'streaming'
+
+export interface VirtualCameraStatus {
+  supported: boolean
+  installed: boolean
+  running: boolean
+  bundleAvailable: boolean
+  message: string
+}
+
+export interface PhoneCameraStatus {
+  state: PhoneCameraState
+  info: PhoneCameraInfo | null
+  virtualCamera: VirtualCameraStatus
+}
+
 export interface UpdateState {
   phase: 'disabled' | 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'error'
   currentVersion: string
@@ -72,12 +99,22 @@ export interface LancastApi {
   }>
   stopStream(): Promise<boolean>
   streamStatus(): Promise<boolean>
+  startPhoneCamera(): Promise<{ ok: boolean; info?: PhoneCameraInfo; error?: string }>
+  stopPhoneCamera(): Promise<boolean>
+  phoneCameraStatus(): Promise<PhoneCameraStatus>
+  sendPhoneCameraSignal(message: unknown): void
+  sendPhoneCameraFrame(frame: Uint8Array): void
+  installVirtualCamera(): Promise<{ ok: boolean; virtualCamera?: VirtualCameraStatus; error?: string }>
+  startVirtualCamera(): Promise<{ ok: boolean; virtualCamera?: VirtualCameraStatus; error?: string }>
+  stopVirtualCamera(): Promise<VirtualCameraStatus>
   updateStatus(): Promise<UpdateState>
   installUpdate(): Promise<{ ok: boolean; error?: string }>
   onLog(cb: (line: string) => void): () => void
   onEnded(cb: (code: number | null) => void): () => void
   onScanProgress(cb: (p: { done: number; total: number }) => void): () => void
   onUpdateStatus(cb: (state: UpdateState) => void): () => void
+  onPhoneCameraSignal(cb: (message: unknown) => void): () => void
+  onPhoneCameraState(cb: (state: { state: PhoneCameraState; message: string }) => void): () => void
 }
 
 declare global {

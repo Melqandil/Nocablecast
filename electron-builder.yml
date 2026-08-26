@@ -25,6 +25,11 @@ extraResources:
   - from: resources/ffmpeg
     to: ffmpeg
     filter: ["**/*"]
+  - from: resources/virtual-camera
+    to: virtual-camera
+    filter: ["**/*"]
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 
 win:
   target:
