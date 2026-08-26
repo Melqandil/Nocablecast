@@ -1,8 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell, clipboard, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, clipboard } from 'electron'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, rmSync } from 'node:fs'
-import { rename, writeFile } from 'node:fs/promises'
 import { execFile } from 'node:child_process'
 import net from 'node:net'
 
@@ -19,23 +18,11 @@ import { startStream, stopStream, isStreaming } from './stream.js'
 import { isLocalIpv4, validateStreamSettings } from './validation.js'
 import { startHlsServer, stopHlsServer, type HlsServerInfo } from './hls-server.js'
 import { initializeUpdater, registerUpdater } from './updater.js'
-import {
-  getPhoneCameraInfo, sendPhoneCameraSignal, startPhoneCameraServer, stopPhoneCameraServer,
-  type PhoneCameraState,
-} from './phone-camera.js'
-import {
-  getVirtualCameraStatus, installVirtualCamera, startVirtualCamera, stopVirtualCamera,
-  virtualCameraFramePath,
-} from './virtual-camera.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let win: BrowserWindow | null = null
 let activeHlsRoot: string | null = null
 let stopping: Promise<void> | null = null
-let phoneCameraState: PhoneCameraState = 'stopped'
-let phoneFramePath: string | null = null
-let pendingPhoneFrame: Buffer | null = null
-let writingPhoneFrame = false
 
 function log(line: string): void {
   win?.webContents.send('stream:log', line)
@@ -61,54 +48,6 @@ async function stopOutput(): Promise<void> {
   } finally {
     stopping = null
   }
-}
-
-function protectPhoneCameraSecret(value: string): string {
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new Error('Windows credential encryption is unavailable. LANCAST will not store a private camera certificate without it.')
-  }
-  return safeStorage.encryptString(value).toString('base64')
-}
-
-function unprotectPhoneCameraSecret(value: string): string {
-  return safeStorage.decryptString(Buffer.from(value, 'base64'))
-}
-
-function resolvePhoneFramePath(): string {
-  const shared = virtualCameraFramePath()
-  try {
-    mkdirSync(dirname(shared), { recursive: true })
-    return shared
-  } catch {
-    const fallback = join(app.getPath('userData'), 'phone-camera', 'phone-camera.jpg')
-    mkdirSync(dirname(fallback), { recursive: true })
-    return fallback
-  }
-}
-
-function queuePhoneFrame(value: unknown): void {
-  if (!phoneFramePath || !(value instanceof Uint8Array) || value.byteLength < 32 || value.byteLength > 2_500_000) return
-  pendingPhoneFrame = Buffer.from(value)
-  if (writingPhoneFrame) return
-  writingPhoneFrame = true
-  void (async () => {
-    while (pendingPhoneFrame && phoneFramePath) {
-      const frame = pendingPhoneFrame
-      const destination = phoneFramePath
-      pendingPhoneFrame = null
-      const temporary = `${destination}.next`
-      try {
-        await writeFile(temporary, frame)
-        await rename(temporary, destination)
-      } catch {
-        // A camera reader can briefly hold the current file on Windows. A
-        // direct retry is safe: the native source keeps its previous frame if
-        // it happens to observe an incomplete JPEG.
-        try { await writeFile(destination, frame) } catch { /* next frame retries */ }
-      }
-    }
-    writingPhoneFrame = false
-  })()
 }
 
 function createWindow(): void {
@@ -150,11 +89,11 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
-  void Promise.all([stopOutput(), stopPhoneCameraServer(), stopVirtualCamera()])
+  void stopOutput()
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => { void Promise.all([stopOutput(), stopPhoneCameraServer(), stopVirtualCamera()]) })
+app.on('before-quit', () => { void stopOutput() })
 
 // ---------------------------------------------------------------- IPC --
 
@@ -237,76 +176,10 @@ ipcMain.handle('network:local-ip', async (_event, targetIp: string) => {
 ipcMain.handle('stream:status', () => isStreaming())
 ipcMain.handle('stream:stop', async () => { await stopOutput(); return true })
 
-ipcMain.handle('phone-camera:start', async () => {
-  if (process.platform !== 'win32') return { ok: false, error: 'Phone Camera is currently available on Windows only.' }
-  try {
-    phoneFramePath = resolvePhoneFramePath()
-    const info = await startPhoneCameraServer({
-      root: join(app.getPath('userData'), 'phone-camera'),
-      framePath: phoneFramePath,
-      protectSecret: protectPhoneCameraSecret,
-      unprotectSecret: unprotectPhoneCameraSecret,
-      onSignal: (message) => win?.webContents.send('phone-camera:signal', message),
-      onFrame: (frame) => {
-        queuePhoneFrame(frame)
-        win?.webContents.send('phone-camera:jpeg', frame)
-      },
-      onState: (state, message) => {
-        phoneCameraState = state
-        win?.webContents.send('phone-camera:state', { state, message })
-      },
-    })
-    return { ok: true, info }
-  } catch (error) {
-    phoneCameraState = 'stopped'
-    phoneFramePath = null
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
-})
-
-ipcMain.handle('phone-camera:stop', async () => {
-  await stopPhoneCameraServer()
-  await stopVirtualCamera()
-  phoneCameraState = 'stopped'
-  phoneFramePath = null
-  pendingPhoneFrame = null
-  return true
-})
-
-ipcMain.handle('phone-camera:status', () => ({
-  state: phoneCameraState,
-  info: getPhoneCameraInfo(),
-  virtualCamera: getVirtualCameraStatus(),
-}))
-ipcMain.on('phone-camera:signal', (_event, message: unknown) => { sendPhoneCameraSignal(message) })
-ipcMain.on('phone-camera:frame', (_event, frame: unknown) => { queuePhoneFrame(frame) })
-
-ipcMain.handle('virtual-camera:install', async () => {
-  try {
-    const virtualCamera = await installVirtualCamera()
-    // The installer creates the Frame Server-readable ProgramData directory.
-    // Restart pairing so subsequent frames switch from any user-data fallback.
-    return { ok: true, virtualCamera }
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
-})
-
-ipcMain.handle('virtual-camera:start', async () => {
-  try {
-    const virtualCamera = await startVirtualCamera()
-    return { ok: true, virtualCamera }
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
-})
-
-ipcMain.handle('virtual-camera:stop', async () => { await stopVirtualCamera(); return getVirtualCameraStatus() })
-
 registerUpdater({
   getWindow: () => win,
   beforeInstall: async () => {
-    await Promise.all([stopOutput(), stopPhoneCameraServer(), stopVirtualCamera()])
+    await stopOutput()
   },
 })
 

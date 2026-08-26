@@ -20,7 +20,6 @@ Your PC captures the screen, encodes it on the GPU, and sends it across your LAN
 - **LG webOS browser support** — Play, Retry, and Fullscreen controls work with the TV remote
 - **Extra monitor assistant** — open Windows Wireless Display, approve the TV, and switch the connection to Extend mode from a guided popup
 - **One-click updates** — a button appears when a newer public GitHub release is available
-- **Phone → PC camera** — scan a local QR code in iPhone or Android Chrome/Safari, preview it in LANCAST, and expose it as “LANCAST Phone Camera” to Windows camera apps; an encrypted fallback automatically handles networks that block WebRTC media
 
 ## Install
 
@@ -39,12 +38,6 @@ DirectShow capture devices—including Stereo Mix and virtual cables—under its
 **microphone access** privacy setting. LANCAST checks the selected input before
 streaming and continues video-only if Windows blocks it, so disabling audio
 access cannot leave the receiver buffering.
-
-The phone-camera receiver works in Chrome or Safari with no phone app and no
-external hosting. Its optional system virtual camera uses the built-in Windows
-11 Media Foundation API, so that final step requires Windows 11 build 22000 or
-newer. Installing the camera component shows one Windows administrator prompt;
-after that LANCAST starts it without elevation.
 
 Starting with v1.4.1, LANCAST checks its public GitHub Releases feed after launch
 and every six hours. When a newer version exists, an **UPDATE TO v…** button
@@ -68,28 +61,6 @@ install of v1.4.1 is manual; later releases can update themselves.
 5. Press **Start**.
 
 The picture should appear on the TV within a few seconds.
-
-### Use a phone as a Windows camera
-
-1. Press **Use phone as camera** in **04 · Run**.
-2. The first time on each phone, scan QR **1**, install the LANCAST local
-   certificate, and enable trust when the phone asks. This is needed because
-   iOS and Android browsers allow camera access only from a secure page.
-3. Scan QR **2** and press **Start Camera** on the phone page. Chrome and Safari
-   are both supported. LANCAST first tries low-latency WebRTC; if its UDP media
-   path connects without delivering a decoded frame, it automatically switches
-   to encrypted JPEG frames over the already-connected local WebSocket. No
-   router settings are required.
-4. On Windows 11, press **Install camera component** once and approve the UAC
-   prompt. Then press **Start virtual camera**.
-5. In Teams, Zoom, OBS, Discord, or Windows Camera, choose
-   **LANCAST Phone Camera**.
-
-The certificate authority private key is protected with Windows credential
-encryption. The phone page, WebSocket signaling, video, and generated frame
-file all stay local. No DNS host, cloud relay, account, or internet connection
-is involved. This first release exposes video only; it does not create a
-virtual microphone.
 
 ### LG webOS — no TV app required
 
